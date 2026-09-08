@@ -296,15 +296,9 @@ class FiberDropPoint(NetBoxModel):
     where specific cores are dropped or spliced.
     """
     POINT_TYPE_CHOICES = [
-        ('start', 'Starting Point (Origin)'),
+        ('start', 'Starting Point'),
         ('drop', 'Intermediate Drop Point'),
-        ('end', 'End Point (Destination)'),
-        ('site', 'Site (Drop Point)'),
-        ('joint_box', 'Joint Closure / Splice Box'),
-        ('odf', 'ODF / Patch Panel'),
-        ('pole', 'Pole / Manhole'),
-        ('chamber', 'Handhole / Chamber'),
-        ('other', 'Other'),
+        ('end', 'End Point'),
     ]
 
     fiber_route = models.ForeignKey(
@@ -328,8 +322,8 @@ class FiberDropPoint(NetBoxModel):
     point_type = models.CharField(
         max_length=50,
         choices=POINT_TYPE_CHOICES,
-        default='site',
-        help_text="Type of drop point"
+        default='drop',
+        help_text="Type of point along the route"
     )
     sequence = models.PositiveIntegerField(
         default=1,

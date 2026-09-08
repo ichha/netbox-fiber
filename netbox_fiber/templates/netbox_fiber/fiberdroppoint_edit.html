@@ -4,75 +4,47 @@
 {{ block.super }}
 
 <style>
-  .core-selector-container {
-    background: var(--bs-tertiary-bg, #f8fafc);
-    border: 1px solid var(--bs-border-color, #e2e8f0);
+  .core-selector-card {
+    background: var(--bs-body-bg, #ffffff);
+    border: 1px solid var(--bs-border-color, #dee2e6);
     border-radius: 8px;
     padding: 16px;
     margin-top: 10px;
-    margin-bottom: 18px;
+    margin-bottom: 20px;
   }
-  .core-btn-grid {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 8px;
-    margin-top: 8px;
+  .ts-wrapper .ts-control {
+    border-radius: 6px;
+    padding: 6px 10px;
+    min-height: 42px;
   }
-  .core-pill-btn {
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-    padding: 6px 13px;
-    border-radius: 20px;
-    border: 1.5px solid var(--bs-border-color, #cbd5e1);
-    background: var(--bs-body-bg, #ffffff);
-    color: var(--bs-body-color, #1e293b);
-    font-size: 13px;
-    font-weight: 600;
-    cursor: pointer;
-    transition: all 0.15s ease-in-out;
-    user-select: none;
+  .ts-wrapper.multi .ts-control > div {
+    border-radius: 4px;
+    font-weight: 500;
   }
-  .core-pill-btn:hover:not(.disabled):not(:disabled) {
-    border-color: #0d6efd;
-    background: rgba(13, 110, 253, 0.08);
-  }
-  .core-pill-btn.active-drop {
-    background: #198754 !important;
-    border-color: #198754 !important;
-    color: #ffffff !important;
-    box-shadow: 0 2px 4px rgba(25, 135, 84, 0.25);
-  }
-  .core-pill-btn.active-pass {
-    background: #0d6efd !important;
-    border-color: #0d6efd !important;
-    color: #ffffff !important;
-    box-shadow: 0 2px 4px rgba(13, 110, 253, 0.25);
-  }
-  .core-pill-btn.disabled, .core-pill-btn:disabled {
-    background: var(--bs-secondary-bg, #e2e8f0) !important;
-    border-color: var(--bs-border-color, #cbd5e1) !important;
-    color: var(--bs-secondary-color, #94a3b8) !important;
+  .ts-dropdown .option.disabled {
+    opacity: 0.55;
+    background: var(--bs-tertiary-bg, #f8f9fa);
     cursor: not-allowed;
-    opacity: 0.65;
+    text-decoration: line-through;
   }
-  .core-badge-tag {
-    font-size: 10px;
-    padding: 1px 6px;
-    border-radius: 10px;
-    background: rgba(0,0,0,0.08);
+  .core-status-pill {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 12px;
+    font-size: 11px;
+    font-weight: 600;
   }
 </style>
 
 <script>
 document.addEventListener('DOMContentLoaded', function() {
-  initCoreSelectors();
+  initCoreMultiSelect();
 });
 document.addEventListener('htmx:load', function() {
-  initCoreSelectors();
+  initCoreMultiSelect();
 });
 
-function initCoreSelectors() {
+function initCoreMultiSelect() {
   const droppedInput = document.getElementById('id_dropped_cores');
   const passedInput = document.getElementById('id_passed_cores');
   const routeSelect = document.getElementById('id_fiber_route');
@@ -80,81 +52,60 @@ function initCoreSelectors() {
   if (!droppedInput || !routeSelect) return;
 
   // Prevent duplicate initialization
-  if (document.getElementById('core-selector-widget')) return;
+  if (document.getElementById('core-multiselect-widget')) return;
 
-  // Create UI Container for Dual Core Selector
+  // Create UI Container for Multi-Selects
   const widgetBox = document.createElement('div');
-  widgetBox.id = 'core-selector-widget';
-  widgetBox.className = 'core-selector-container shadow-sm';
+  widgetBox.id = 'core-multiselect-widget';
+  widgetBox.className = 'core-selector-card shadow-sm';
 
   widgetBox.innerHTML = `
-    <!-- Top Header -->
     <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3 pb-2 border-bottom">
       <div>
         <h6 class="mb-0 fw-bold text-primary">
-          <i class="mdi mdi-vector-polyline me-1"></i>Interactive Fiber Core Allocation & Pass-through Manager
+          <i class="mdi mdi-vector-polyline me-1"></i>Fiber Core Allocation (Tag Multi-Select)
         </h6>
-        <small class="text-muted" id="core-selector-hint">
-          Designate which cores are dropped/terminated here and which cores continue through the closure.
+        <small class="text-muted" id="core-multiselect-hint">
+          Select cores dropped/terminated at this station and cores passing through to downstream points.
         </small>
       </div>
       <div class="btn-group btn-group-sm" role="group">
-        <button type="button" class="btn btn-outline-success" id="btn-smart-allocate" title="Automatically calculate passed cores based on dropped cores">
+        <button type="button" class="btn btn-outline-primary" id="btn-auto-pass" title="Automatically calculate passed cores">
           <i class="mdi mdi-auto-fix me-1"></i>Auto Calculate Pass
         </button>
-        <button type="button" class="btn btn-outline-secondary" id="btn-clear-all" title="Clear both dropped and passed selections">
-          <i class="mdi mdi-close me-1"></i>Reset
+        <button type="button" class="btn btn-outline-secondary" id="btn-reset-cores" title="Reset selections">
+          <i class="mdi mdi-refresh me-1"></i>Reset
         </button>
       </div>
     </div>
 
-    <!-- Section 1: Dropped Cores -->
-    <div class="mb-3 p-2 bg-body rounded border">
-      <div class="d-flex justify-content-between align-items-center mb-1">
-        <div class="d-flex align-items-center gap-2">
-          <span class="badge bg-success text-white px-2 py-1"><i class="mdi mdi-source-branch me-1"></i>Dropped / Spliced Cores</span>
-          <span class="small text-muted">Cores terminated into this location</span>
-        </div>
-        <div class="btn-group btn-group-sm">
-          <button type="button" class="btn btn-sm btn-link p-0 text-success text-decoration-none fw-semibold me-2" id="btn-select-all-drops">
-            Select All Available
-          </button>
-          <button type="button" class="btn btn-sm btn-link p-0 text-secondary text-decoration-none" id="btn-clear-drops">
-            Clear
-          </button>
-        </div>
-      </div>
-      <div id="drop-core-list" class="core-btn-grid">
-        <div class="text-muted small py-2"><i class="mdi mdi-loading mdi-spin me-1"></i>Select a Fiber Route above...</div>
-      </div>
-      <div class="mt-2 small d-flex justify-content-between text-muted">
-        <span id="drop-summary" class="fw-semibold text-success">Dropped: None</span>
-        <span>Allocated in other points are locked</span>
+    <!-- Dropped Cores Multi-Select -->
+    <div class="mb-3">
+      <label class="form-label fw-bold d-flex justify-content-between align-items-center mb-1">
+        <span>
+          <span class="badge bg-success text-white me-1"><i class="mdi mdi-source-branch me-1"></i>Dropped Cores</span>
+          Cores spliced / terminated locally at this location
+        </span>
+        <span class="small text-muted" id="drop-count-label">0 selected</span>
+      </label>
+      <select id="select_dropped_cores" multiple class="form-select" placeholder="Choose cores to drop..."></select>
+      <div class="form-text text-muted small mt-1">
+        <i class="mdi mdi-information-outline me-1"></i>Cores with both ends terminated are locked and disabled.
       </div>
     </div>
 
-    <!-- Section 2: Passed Cores -->
-    <div class="p-2 bg-body rounded border">
-      <div class="d-flex justify-content-between align-items-center mb-1">
-        <div class="d-flex align-items-center gap-2">
-          <span class="badge bg-primary text-white px-2 py-1"><i class="mdi mdi-ray-start-end me-1"></i>Passed-through Cores</span>
-          <span class="small text-muted">Cores continuing in cable through closure without termination</span>
-        </div>
-        <div class="btn-group btn-group-sm">
-          <button type="button" class="btn btn-sm btn-link p-0 text-primary text-decoration-none fw-semibold me-2" id="btn-select-all-passed">
-            Pass All Remaining
-          </button>
-          <button type="button" class="btn btn-sm btn-link p-0 text-secondary text-decoration-none" id="btn-clear-passed">
-            Clear
-          </button>
-        </div>
-      </div>
-      <div id="pass-core-list" class="core-btn-grid">
-        <div class="text-muted small py-2"><i class="mdi mdi-loading mdi-spin me-1"></i>Select a Fiber Route above...</div>
-      </div>
-      <div class="mt-2 small d-flex justify-content-between text-muted">
-        <span id="pass-summary" class="fw-semibold text-primary">Passed: None</span>
-        <span>End Points terminate cable (no passed cores)</span>
+    <!-- Passed Cores Multi-Select -->
+    <div class="mb-2">
+      <label class="form-label fw-bold d-flex justify-content-between align-items-center mb-1">
+        <span>
+          <span class="badge bg-primary text-white me-1"><i class="mdi mdi-ray-start-end me-1"></i>Passed-Through Cores</span>
+          Cores continuing along the cable through the closure without termination
+        </span>
+        <span class="small text-muted" id="pass-count-label">0 selected</span>
+      </label>
+      <select id="select_passed_cores" multiple class="form-select" placeholder="Choose cores to pass through..."></select>
+      <div class="form-text text-muted small mt-1" id="pass-help-text">
+        <i class="mdi mdi-information-outline me-1"></i>Cores dropped locally or terminated upstream cannot pass through.
       </div>
     </div>
   `;
@@ -175,16 +126,16 @@ function initCoreSelectors() {
     currentDpId = pathParts[editIdx - 1];
   }
 
-  // State
-  let totalRouteCores = 0;
-  let selectedDropCores = new Set();
-  let selectedPassCores = new Set();
-  let allocatedElsewhere = {}; // { coreNum: { point_name, point_type } }
+  // TomSelect instances
+  let tsDrop = null;
+  let tsPass = null;
+  let coresData = []; // list of { core, drop_count, is_locked, lock_reason }
+  let totalCores = 0;
 
-  // Helper to parse comma/range strings into Set
-  function parseCoreString(str) {
-    const s = new Set();
-    if (!str) return s;
+  // Helper to parse strings like "1, 2, 3-5" into array of numbers
+  function parseCoreNumbers(str) {
+    if (!str) return [];
+    const res = [];
     const parts = String(str).replace(/;/g, ',').split(',');
     parts.forEach(p => {
       p = p.trim();
@@ -194,237 +145,207 @@ function initCoreSelectors() {
         if (sub.length === 2 && !isNaN(sub[0]) && !isNaN(sub[1])) {
           const start = Math.min(sub[0], sub[1]);
           const end = Math.max(sub[0], sub[1]);
-          for (let i = start; i <= end; i++) s.add(i);
+          for (let i = start; i <= end; i++) {
+            if (!res.includes(i)) res.push(i);
+          }
         }
       } else {
         const num = parseInt(p, 10);
-        if (!isNaN(num)) s.add(num);
+        if (!isNaN(num) && !res.includes(num)) res.push(num);
       }
     });
-    return s;
+    return res.sort((a, b) => a - b);
   }
 
-  function readInputs() {
-    selectedDropCores = parseCoreString(droppedInput.value);
+  // Sync from Multi-Selects to the hidden/text Form inputs
+  function syncToInputs() {
+    let dropVals = [];
+    let passVals = [];
+
+    if (tsDrop) {
+      dropVals = tsDrop.getValue().map(v => parseInt(v, 10)).filter(n => !isNaN(n)).sort((a, b) => a - b);
+    } else {
+      const el = document.getElementById('select_dropped_cores');
+      dropVals = Array.from(el.selectedOptions).map(o => parseInt(o.value, 10)).sort((a, b) => a - b);
+    }
+
+    if (tsPass) {
+      passVals = tsPass.getValue().map(v => parseInt(v, 10)).filter(n => !isNaN(n)).sort((a, b) => a - b);
+    } else if (document.getElementById('select_passed_cores')) {
+      const el = document.getElementById('select_passed_cores');
+      passVals = Array.from(el.selectedOptions).map(o => parseInt(o.value, 10)).sort((a, b) => a - b);
+    }
+
+    droppedInput.value = dropVals.join(', ');
     if (passedInput) {
-      selectedPassCores = parseCoreString(passedInput.value);
+      passedInput.value = passVals.join(', ');
     }
+
+    const dropCountLabel = document.getElementById('drop-count-label');
+    if (dropCountLabel) dropCountLabel.textContent = `${dropVals.length} core(s) selected`;
+
+    const passCountLabel = document.getElementById('pass-count-label');
+    if (passCountLabel) passCountLabel.textContent = `${passVals.length} core(s) selected`;
   }
 
-  function syncInputs() {
-    // Dropped cores input
-    const sortedDrops = Array.from(selectedDropCores).sort((a, b) => a - b);
-    droppedInput.value = sortedDrops.join(', ');
-    const dropSummary = document.getElementById('drop-summary');
-    if (dropSummary) {
-      dropSummary.textContent = sortedDrops.length ? `Dropped: ${sortedDrops.length} core(s) (${sortedDrops.map(c => 'Core ' + c).join(', ')})` : 'Dropped: None';
-    }
-
-    // Passed cores input
-    if (passedInput) {
-      const sortedPass = Array.from(selectedPassCores).sort((a, b) => a - b);
-      passedInput.value = sortedPass.join(', ');
-      const passSummary = document.getElementById('pass-summary');
-      if (passSummary) {
-        passSummary.textContent = sortedPass.length ? `Passed: ${sortedPass.length} core(s) (${sortedPass.map(c => 'Core ' + c).join(', ')})` : 'Passed: None';
-      }
-    }
-
-    renderButtonStates();
-  }
-
-  function renderButtonStates() {
-    // Render Drop buttons state
-    document.querySelectorAll('.btn-drop-core').forEach(btn => {
-      const c = parseInt(btn.dataset.core, 10);
-      if (selectedDropCores.has(c)) {
-        btn.classList.add('active-drop');
-        const icon = btn.querySelector('.drop-check-icon');
-        if (icon) icon.className = 'mdi mdi-check-circle drop-check-icon';
-      } else {
-        btn.classList.remove('active-drop');
-        const icon = btn.querySelector('.drop-check-icon');
-        if (icon) icon.className = 'mdi mdi-circle-outline drop-check-icon';
-      }
-    });
-
-    // Render Pass buttons state
+  // Smart Auto-Calculation of Passed Cores based on Dropped Cores
+  function calculatePassedCores() {
+    if (!totalCores) return;
     const pointType = pointTypeSelect ? pointTypeSelect.value : 'drop';
-    document.querySelectorAll('.btn-pass-core').forEach(btn => {
-      const c = parseInt(btn.dataset.core, 10);
-      const isDroppedHere = selectedDropCores.has(c);
-      const isAllocatedElsewhere = !!allocatedElsewhere[c];
 
-      if (pointType === 'end' || isDroppedHere || isAllocatedElsewhere) {
-        btn.disabled = true;
-        btn.classList.add('disabled');
-        btn.classList.remove('active-pass');
-        const icon = btn.querySelector('.pass-check-icon');
-        if (icon) {
-          icon.className = isDroppedHere ? 'mdi mdi-arrow-down-bold text-success pass-check-icon' : 'mdi mdi-lock text-muted pass-check-icon';
-        }
-        selectedPassCores.delete(c);
-      } else {
-        btn.disabled = false;
-        btn.classList.remove('disabled');
-        if (selectedPassCores.has(c)) {
-          btn.classList.add('active-pass');
-          const icon = btn.querySelector('.pass-check-icon');
-          if (icon) icon.className = 'mdi mdi-check-circle pass-check-icon';
-        } else {
-          btn.classList.remove('active-pass');
-          const icon = btn.querySelector('.pass-check-icon');
-          if (icon) icon.className = 'mdi mdi-circle-outline pass-check-icon';
-        }
-      }
-    });
-  }
-
-  // Smart Auto-Calculation Logic
-  function autoCalculatePassedCores() {
-    const pointType = pointTypeSelect ? pointTypeSelect.value : 'drop';
+    let dropVals = [];
+    if (tsDrop) {
+      dropVals = tsDrop.getValue().map(v => parseInt(v, 10)).filter(n => !isNaN(n));
+    } else {
+      dropVals = parseCoreNumbers(droppedInput.value);
+    }
 
     if (pointType === 'start') {
-      // For Starting Point: all cores originate and pass into the cable
-      selectedDropCores.clear();
-      selectedPassCores.clear();
-      for (let c = 1; c <= totalRouteCores; c++) {
-        selectedDropCores.add(c);
-        selectedPassCores.add(c);
-      }
+      // Starting Point: All cores enter cable
+      const allCores = Array.from({ length: totalCores }, (_, i) => String(i + 1));
+      if (tsDrop && !tsDrop.getValue().length) tsDrop.setValue(allCores);
+      if (tsPass) tsPass.setValue(allCores);
     } else if (pointType === 'end') {
-      // For End Point: all remaining available cores terminate here; NO cores pass through
-      selectedPassCores.clear();
-      for (let c = 1; c <= totalRouteCores; c++) {
-        if (!allocatedElsewhere[c]) {
-          selectedDropCores.add(c);
-        }
+      // End Point: Terminates route, no cores pass through
+      if (tsPass) {
+        tsPass.clear();
+        tsPass.disable();
+      }
+      // Drop all available remaining cores
+      const available = coresData.filter(cd => !cd.is_locked).map(cd => String(cd.core));
+      if (tsDrop && !tsDrop.getValue().length) {
+        tsDrop.setValue(available);
       }
     } else {
-      // For Intermediate Drop Point:
-      // Passed Cores = (All cores not dropped upstream) MINUS (Cores dropped at this point)
-      selectedPassCores.clear();
-      for (let c = 1; c <= totalRouteCores; c++) {
-        if (!allocatedElsewhere[c] && !selectedDropCores.has(c)) {
-          selectedPassCores.add(c);
-        }
+      // Intermediate Drop Point:
+      // Passed Cores = Cores not locked elsewhere and not dropped here
+      if (tsPass) {
+        tsPass.enable();
+        const passedToSelect = [];
+        coresData.forEach(cd => {
+          if (!cd.is_locked && !dropVals.includes(cd.core)) {
+            passedToSelect.push(String(cd.core));
+          }
+        });
+        tsPass.setValue(passedToSelect);
       }
     }
 
-    syncInputs();
+    syncToInputs();
   }
 
-  // Build the Core Buttons for both Dropped and Passed
-  function buildCoreGrids() {
-    const dropList = document.getElementById('drop-core-list');
-    const passList = document.getElementById('pass-core-list');
-    if (!dropList || !passList) return;
-
-    dropList.innerHTML = '';
-    passList.innerHTML = '';
-
+  // Populate Options in TomSelect
+  function populateSelectOptions(routeData) {
+    coresData = routeData.cores_info || [];
+    totalCores = routeData.total_cores || 0;
     const pointType = pointTypeSelect ? pointTypeSelect.value : 'drop';
 
-    for (let c = 1; c <= totalRouteCores; c++) {
-      const isAllocatedElsewhere = !!allocatedElsewhere[c];
-      const allocInfo = allocatedElsewhere[c];
+    const dropEl = document.getElementById('select_dropped_cores');
+    const passEl = document.getElementById('select_passed_cores');
+    if (!dropEl || !passEl) return;
 
-      // --- 1. Drop Button ---
-      const dropBtn = document.createElement('button');
-      dropBtn.type = 'button';
-      dropBtn.dataset.core = c;
-      dropBtn.className = 'core-pill-btn btn-drop-core';
+    // Destroy existing TomSelect instances if any
+    if (tsDrop) { tsDrop.destroy(); tsDrop = null; }
+    if (tsPass) { tsPass.destroy(); tsPass = null; }
 
-      if (isAllocatedElsewhere) {
-        dropBtn.className += ' disabled';
-        dropBtn.disabled = true;
-        dropBtn.title = `Core ${c} is already allocated at ${allocInfo.point_name} (${allocInfo.point_type})`;
-        dropBtn.innerHTML = `
-          <i class="mdi mdi-lock text-danger"></i>
-          <span>Core ${c}</span>
-          <span class="core-badge-tag text-muted">${allocInfo.point_name}</span>
-        `;
+    dropEl.innerHTML = '';
+    passEl.innerHTML = '';
+
+    const initialDropped = parseCoreNumbers(droppedInput.value || (routeData.current_dropped || []).join(','));
+    const initialPassed = parseCoreNumbers(passedInput ? passedInput.value || (routeData.current_passed || []).join(',') : '');
+
+    coresData.forEach(cd => {
+      const c = cd.core;
+      const isLocked = cd.is_locked; // Both ends dropped
+
+      // Drop option
+      const dropOpt = document.createElement('option');
+      dropOpt.value = c;
+      if (isLocked) {
+        dropOpt.disabled = true;
+        dropOpt.textContent = `Core ${c} [DISABLED - ${cd.lock_reason}]`;
       } else {
-        dropBtn.title = `Click to toggle dropping Core ${c}`;
-        dropBtn.innerHTML = `
-          <i class="mdi mdi-circle-outline drop-check-icon"></i>
-          <span>Core ${c}</span>
-        `;
-        dropBtn.addEventListener('click', function(e) {
-          e.preventDefault();
-          if (selectedDropCores.has(c)) {
-            selectedDropCores.delete(c);
-          } else {
-            selectedDropCores.add(c);
-            selectedPassCores.delete(c); // cannot pass if dropped here
-          }
-          // Auto update remaining into passed cores for intermediate points
-          if (pointType === 'drop' || pointType === 'site' || pointType === 'joint_box') {
-            autoCalculatePassedCores();
-          } else {
-            syncInputs();
-          }
-        });
+        dropOpt.textContent = `Core ${c}`;
+        if (initialDropped.includes(c)) dropOpt.selected = true;
       }
-      dropList.appendChild(dropBtn);
+      dropEl.appendChild(dropOpt);
 
-      // --- 2. Pass Button ---
-      const passBtn = document.createElement('button');
-      passBtn.type = 'button';
-      passBtn.dataset.core = c;
-      passBtn.className = 'core-pill-btn btn-pass-core';
-
+      // Pass option
+      const passOpt = document.createElement('option');
+      passOpt.value = c;
       if (pointType === 'end') {
-        passBtn.className += ' disabled';
-        passBtn.disabled = true;
-        passBtn.title = 'End Point: No cores pass beyond route termination';
-        passBtn.innerHTML = `<i class="mdi mdi-cancel text-muted"></i><span>Core ${c}</span>`;
-      } else if (isAllocatedElsewhere) {
-        passBtn.className += ' disabled';
-        passBtn.disabled = true;
-        passBtn.title = `Core ${c} terminated upstream at ${allocInfo.point_name}`;
-        passBtn.innerHTML = `
-          <i class="mdi mdi-lock text-muted"></i>
-          <span>Core ${c}</span>
-          <span class="core-badge-tag text-muted">Dropped upstream</span>
-        `;
+        passOpt.disabled = true;
+        passOpt.textContent = `Core ${c} [End Point - No outgoing cores]`;
+      } else if (isLocked) {
+        passOpt.disabled = true;
+        passOpt.textContent = `Core ${c} [DISABLED - ${cd.lock_reason}]`;
       } else {
-        passBtn.title = `Click to toggle passing Core ${c} through this point`;
-        passBtn.innerHTML = `
-          <i class="mdi mdi-circle-outline pass-check-icon"></i>
-          <span>Core ${c}</span>
-        `;
-        passBtn.addEventListener('click', function(e) {
-          e.preventDefault();
-          if (selectedPassCores.has(c)) {
-            selectedPassCores.delete(c);
-          } else {
-            selectedPassCores.add(c);
-            selectedDropCores.delete(c); // cannot drop if passing
-          }
-          syncInputs();
-        });
+        passOpt.textContent = `Core ${c}`;
+        if (initialPassed.includes(c)) passOpt.selected = true;
       }
-      passList.appendChild(passBtn);
+      passEl.appendChild(passOpt);
+    });
+
+    // Initialize TomSelect if library is available
+    if (typeof TomSelect !== 'undefined') {
+      try {
+        tsDrop = new TomSelect(dropEl, {
+          plugins: ['remove_button', 'clear_button'],
+          persist: false,
+          create: false,
+          maxItems: null,
+          placeholder: 'Search and select cores to drop...',
+          hideSelected: true,
+          closeAfterSelect: false,
+          onItemAdd: function() {
+            syncToInputs();
+            if (pointType === 'drop') calculatePassedCores();
+          },
+          onItemRemove: function() {
+            syncToInputs();
+            if (pointType === 'drop') calculatePassedCores();
+          },
+          onChange: function() {
+            syncToInputs();
+          }
+        });
+
+        tsPass = new TomSelect(passEl, {
+          plugins: ['remove_button', 'clear_button'],
+          persist: false,
+          create: false,
+          maxItems: null,
+          placeholder: pointType === 'end' ? 'End point terminates route (no passed cores)' : 'Search and select cores to pass through...',
+          hideSelected: true,
+          closeAfterSelect: false,
+          onChange: function() {
+            syncToInputs();
+          }
+        });
+
+        if (pointType === 'end') {
+          tsPass.disable();
+        }
+      } catch (err) {
+        console.warn("TomSelect init fallback:", err);
+      }
+    } else {
+      // Native multi-select fallback
+      dropEl.addEventListener('change', syncToInputs);
+      passEl.addEventListener('change', syncToInputs);
     }
 
-    syncInputs();
+    // If new point and inputs were blank, auto-calculate initial pass
+    if (!droppedInput.value && (!passedInput || !passedInput.value)) {
+      calculatePassedCores();
+    } else {
+      syncToInputs();
+    }
   }
 
-  // Load Route data from API
+  // Fetch Route Data via API
   function loadRouteData(routeId) {
-    const dropList = document.getElementById('drop-core-list');
-    const passList = document.getElementById('pass-core-list');
-    if (!dropList || !passList) return;
-
-    if (!routeId) {
-      dropList.innerHTML = '<div class="text-muted small py-2"><i class="mdi mdi-arrow-up me-1"></i>Select a Fiber Route above...</div>';
-      passList.innerHTML = '<div class="text-muted small py-2"><i class="mdi mdi-arrow-up me-1"></i>Select a Fiber Route above...</div>';
-      return;
-    }
-
-    dropList.innerHTML = '<div class="text-muted small py-2"><i class="mdi mdi-loading mdi-spin me-1"></i>Loading available cores...</div>';
-    passList.innerHTML = '<div class="text-muted small py-2"><i class="mdi mdi-loading mdi-spin me-1"></i>Loading available cores...</div>';
+    if (!routeId) return;
 
     let url = `/plugins/fiber/api/route-cores/?route_id=${encodeURIComponent(routeId)}`;
     if (currentDpId) {
@@ -433,117 +354,63 @@ function initCoreSelectors() {
 
     fetch(url)
       .then(res => {
-        if (!res.ok) throw new Error(`HTTP error ${res.status}`);
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
         return res.json();
       })
       .then(data => {
-        if (!data || !data.total_cores) {
-          dropList.innerHTML = '<div class="alert alert-warning p-2 small mb-0">No cores configured for this route.</div>';
-          passList.innerHTML = '';
-          return;
-        }
-
-        totalRouteCores = data.total_cores;
-        allocatedElsewhere = data.allocated_cores || {};
-        readInputs();
-
-        // If newly creating a drop point (inputs are empty), suggest smart defaults
-        const isNewPoint = !droppedInput.value && (!passedInput || !passedInput.value);
-        if (isNewPoint) {
-          autoCalculatePassedCores();
-        }
-
-        buildCoreGrids();
+        populateSelectOptions(data);
       })
       .catch(err => {
         console.error("Error loading route cores:", err);
-        dropList.innerHTML = `<div class="alert alert-warning p-2 small mb-0">Failed to load cores: ${err.message}</div>`;
-        passList.innerHTML = '';
       });
   }
 
-  // Quick Action Button Handlers
-  document.getElementById('btn-smart-allocate').addEventListener('click', function(e) {
+  // Button Listeners
+  document.getElementById('btn-auto-pass').addEventListener('click', function(e) {
     e.preventDefault();
-    autoCalculatePassedCores();
+    calculatePassedCores();
   });
 
-  document.getElementById('btn-clear-all').addEventListener('click', function(e) {
+  document.getElementById('btn-reset-cores').addEventListener('click', function(e) {
     e.preventDefault();
-    selectedDropCores.clear();
-    selectedPassCores.clear();
-    syncInputs();
+    if (tsDrop) tsDrop.clear();
+    if (tsPass) tsPass.clear();
+    droppedInput.value = '';
+    if (passedInput) passedInput.value = '';
+    syncToInputs();
   });
-
-  document.getElementById('btn-select-all-drops').addEventListener('click', function(e) {
-    e.preventDefault();
-    for (let c = 1; c <= totalRouteCores; c++) {
-      if (!allocatedElsewhere[c]) {
-        selectedDropCores.add(c);
-        selectedPassCores.delete(c);
-      }
-    }
-    syncInputs();
-  });
-
-  document.getElementById('btn-clear-drops').addEventListener('click', function(e) {
-    e.preventDefault();
-    selectedDropCores.clear();
-    syncInputs();
-  });
-
-  document.getElementById('btn-select-all-passed').addEventListener('click', function(e) {
-    e.preventDefault();
-    const pointType = pointTypeSelect ? pointTypeSelect.value : 'drop';
-    if (pointType === 'end') return;
-    for (let c = 1; c <= totalRouteCores; c++) {
-      if (!allocatedElsewhere[c] && !selectedDropCores.has(c)) {
-        selectedPassCores.add(c);
-      }
-    }
-    syncInputs();
-  });
-
-  document.getElementById('btn-clear-passed').addEventListener('click', function(e) {
-    e.preventDefault();
-    selectedPassCores.clear();
-    syncInputs();
-  });
-
-  // Direct input listeners
-  droppedInput.addEventListener('input', function() {
-    selectedDropCores = parseCoreString(this.value);
-    syncInputs();
-  });
-  if (passedInput) {
-    passedInput.addEventListener('input', function() {
-      selectedPassCores = parseCoreString(this.value);
-      syncInputs();
-    });
-  }
 
   // Route select listener
   routeSelect.addEventListener('change', function() {
     loadRouteData(this.value);
   });
 
-  // Point type listener
+  // Point type select listener
   if (pointTypeSelect) {
     pointTypeSelect.addEventListener('change', function() {
-      const hint = document.getElementById('core-selector-hint');
+      const hint = document.getElementById('core-multiselect-hint');
+      const passHelp = document.getElementById('pass-help-text');
       if (this.value === 'start') {
-        if (hint) hint.textContent = 'Starting Point: All route cores typically originate here and pass into the cable.';
+        if (hint) hint.textContent = 'Starting Point: All route cores originate here and enter the cable.';
+        if (passHelp) passHelp.textContent = 'All originating cores typically pass into the outgoing cable bundle.';
+        if (tsPass) tsPass.enable();
       } else if (this.value === 'end') {
-        if (hint) hint.textContent = 'End Point: Remaining cores terminate here. No cores pass through beyond the route end.';
+        if (hint) hint.textContent = 'End Point: Destination station where remaining cores terminate. No cores pass through beyond this station.';
+        if (passHelp) passHelp.textContent = 'End Point: No cores pass beyond the termination of the route.';
+        if (tsPass) {
+          tsPass.clear();
+          tsPass.disable();
+        }
       } else {
-        if (hint) hint.textContent = 'Intermediate Drop: Selected cores are dropped locally; remaining available cores pass through the closure.';
+        if (hint) hint.textContent = 'Intermediate Drop Point: Cores are tapped/spliced into the local enclosure; remaining cores pass through.';
+        if (passHelp) passHelp.textContent = 'Cores dropped locally or terminated upstream cannot pass through.';
+        if (tsPass) tsPass.enable();
       }
-      autoCalculatePassedCores();
-      buildCoreGrids();
+      calculatePassedCores();
     });
   }
 
-  // Initial load
+  // Initial Load
   if (routeSelect.value) {
     loadRouteData(routeSelect.value);
   } else {

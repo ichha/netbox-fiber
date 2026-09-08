@@ -394,10 +394,10 @@ class FiberTopologyDataAPI(View):
 class FiberRouteCoreAvailabilityAPI(View):
     """
     API endpoint returning core availability and existing allocations for a fiber route.
-    Used by the Drop Point form dynamic core selection widget.
-    Query parameters:
-      - route_id: Primary key of FiberRoute
-      - drop_point_id: Optional PK of current FiberDropPoint (to exclude its own allocated cores when editing)
+    Manages the 'both ends dropped' optical circuit rule:
+      - End 1: Origin at Starting Point (or upstream drop)
+      - End 2: Destination termination at an intermediate drop or end point
+    When both ends of a core are dropped, it is locked/disabled from further drops.
     """
     def get(self, request):
         route_id = request.GET.get('route_id')
@@ -409,33 +409,66 @@ class FiberRouteCoreAvailabilityAPI(View):
         route = get_object_or_404(FiberRoute, pk=route_id)
         total_cores = route.total_cores
 
-        # Find other drop points for this route
-        drop_points = FiberDropPoint.objects.filter(fiber_route=route)
+        # Fetch all other drop points for this route
+        all_dps = list(FiberDropPoint.objects.filter(fiber_route=route).order_by('sequence', 'id'))
         if current_dp_id:
-            drop_points = drop_points.exclude(pk=current_dp_id)
+            all_dps = [dp for dp in all_dps if str(dp.pk) != str(current_dp_id)]
 
-        allocated_cores = {}
-        for dp in drop_points:
+        # Track history of drops for each core: core_num -> list of drop point info
+        core_drop_history = {c: [] for c in range(1, total_cores + 1)}
+        for dp in all_dps:
             for c in dp.parsed_dropped_cores:
-                allocated_cores[c] = {
-                    'point_id': dp.pk,
-                    'point_name': dp.site_display,
-                    'point_type': dp.get_point_type_display(),
-                }
+                if c in core_drop_history:
+                    core_drop_history[c].append({
+                        'point_id': dp.pk,
+                        'point_name': dp.site_display,
+                        'point_type': dp.point_type,
+                        'point_type_display': dp.get_point_type_display(),
+                    })
+
+        # Calculate "both ends dropped" status for each core
+        cores_info = []
+        for c in range(1, total_cores + 1):
+            history = core_drop_history[c]
+            drop_count = len(history)
+
+            has_start = any(h['point_type'] == 'start' for h in history)
+            downstream_drops = [h for h in history if h['point_type'] in ['drop', 'end']]
+
+            # A core is locked if both ends are dropped (i.e. has downstream drop, or dropped >= 2 times)
+            is_locked = (len(downstream_drops) >= 1) or (drop_count >= 2)
+
+            lock_reason = ""
+            if downstream_drops:
+                lock_reason = f"Both ends dropped (Terminated at {downstream_drops[0]['point_name']})"
+            elif drop_count >= 2:
+                lock_reason = f"Both ends dropped ({', '.join(h['point_name'] for h in history)})"
+
+            cores_info.append({
+                'core': c,
+                'drop_count': drop_count,
+                'is_locked': is_locked,
+                'lock_reason': lock_reason,
+                'history': history,
+                'has_start': has_start,
+            })
 
         # Current drop point's own cores (if editing)
-        current_cores = []
+        current_dropped = []
+        current_passed = []
         if current_dp_id:
             curr_dp = FiberDropPoint.objects.filter(pk=current_dp_id).first()
             if curr_dp:
-                current_cores = curr_dp.parsed_dropped_cores
+                current_dropped = curr_dp.parsed_dropped_cores
+                current_passed = curr_dp.parsed_passed_cores
 
         return JsonResponse({
             'route_id': route.pk,
             'route_name': route.name,
             'total_cores': total_cores,
             'cores': list(range(1, total_cores + 1)),
-            'allocated_cores': allocated_cores,
-            'current_cores': current_cores,
+            'cores_info': cores_info,
+            'current_dropped': current_dropped,
+            'current_passed': current_passed,
         })
 

@@ -99,8 +99,22 @@ class FiberDropPointForm(NetBoxModelForm):
         if not cleaned_data:
             return self.cleaned_data
 
-        fiber_route = cleaned_data.get('fiber_route')
-        dropped_cores_str = cleaned_data.get('dropped_cores')
+        point_type = cleaned_data.get('point_type')
+
+        # Check uniqueness of Starting and End points on the route
+        if fiber_route and point_type in ['start', 'end']:
+            existing_same_type = FiberDropPoint.objects.filter(
+                fiber_route=fiber_route,
+                point_type=point_type
+            )
+            if self.instance and self.instance.pk:
+                existing_same_type = existing_same_type.exclude(pk=self.instance.pk)
+            if existing_same_type.exists():
+                role_label = 'Starting Point' if point_type == 'start' else 'End Point'
+                self.add_error(
+                    'point_type',
+                    f"Route '{fiber_route.name}' already has a {role_label} ('{existing_same_type.first().site_display}'). Each route can only have one {role_label}."
+                )
 
         if fiber_route and dropped_cores_str:
             selected_cores = parse_core_string(dropped_cores_str)
@@ -114,25 +128,29 @@ class FiberDropPointForm(NetBoxModelForm):
                     f"Selected core(s) {invalid_cores} are out of bounds. Route '{fiber_route.name}' only has {total_cores} cores."
                 )
 
-            # Check conflicts with other drop points on this route
-            other_points = FiberDropPoint.objects.filter(fiber_route=fiber_route)
-            if self.instance and self.instance.pk:
-                other_points = other_points.exclude(pk=self.instance.pk)
+            # Check conflicts only against other consuming drop points (Intermediate Drop and End Point)
+            # Starting Point originates cores and does not conflict with downstream drops
+            if point_type in ['drop', 'end']:
+                other_consuming = FiberDropPoint.objects.filter(
+                    fiber_route=fiber_route,
+                    point_type__in=['drop', 'end']
+                )
+                if self.instance and self.instance.pk:
+                    other_consuming = other_consuming.exclude(pk=self.instance.pk)
 
-            for other in other_points:
-                other_cores = set(other.parsed_dropped_cores)
-                conflicts = [c for c in selected_cores if c in other_cores]
-                if conflicts:
-                    conflict_str = ", ".join(f"Core {c}" for c in conflicts)
-                    self.add_error(
-                        'dropped_cores',
-                        f"{conflict_str} is already allocated at '{other.site_display}' ({other.get_point_type_display()}). Each core can only be allocated once per route."
-                    )
-                    break
+                for other in other_consuming:
+                    other_cores = set(other.parsed_dropped_cores)
+                    conflicts = [c for c in selected_cores if c in other_cores]
+                    if conflicts:
+                        conflict_str = ", ".join(f"Core {c}" for c in conflicts)
+                        self.add_error(
+                            'dropped_cores',
+                            f"{conflict_str} is already dropped at '{other.site_display}' ({other.get_point_type_display()}). Each core can only be dropped once along the route."
+                        )
+                        break
 
         # Validate passed cores
         passed_cores_str = cleaned_data.get('passed_cores')
-        point_type = cleaned_data.get('point_type')
 
         if point_type == 'end':
             # End points do not have outgoing passed cores

@@ -178,8 +178,35 @@ document.addEventListener('DOMContentLoaded', function() {
 
     statsBadge.textContent = `${data.summary.total_routes} Routes | ${data.summary.total_nodes} Sites/Joints`;
 
-    nodesDataSet = new vis.DataSet(data.nodes);
-    edgesDataSet = new vis.DataSet(data.edges);
+    // Convert HTML string titles into rich HTML DOM elements for vis-network
+    const processedNodes = (data.nodes || []).map(node => {
+      const n = { ...node };
+      if (n.title && typeof n.title === 'string') {
+        const div = document.createElement('div');
+        div.style.padding = '4px 6px';
+        div.style.fontSize = '12px';
+        div.style.lineHeight = '1.4';
+        div.innerHTML = n.title;
+        n.title = div;
+      }
+      return n;
+    });
+
+    const processedEdges = (data.edges || []).map(edge => {
+      const e = { ...edge };
+      if (e.title && typeof e.title === 'string') {
+        const div = document.createElement('div');
+        div.style.padding = '4px 6px';
+        div.style.fontSize = '12px';
+        div.style.lineHeight = '1.4';
+        div.innerHTML = e.title;
+        e.title = div;
+      }
+      return e;
+    });
+
+    nodesDataSet = new vis.DataSet(processedNodes);
+    edgesDataSet = new vis.DataSet(processedEdges);
 
     const isDark = document.documentElement.getAttribute('data-bs-theme') === 'dark';
 

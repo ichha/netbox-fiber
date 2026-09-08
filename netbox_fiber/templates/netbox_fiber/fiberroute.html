@@ -547,7 +547,7 @@ function renderFiberSchematic() {
         dropPositions[dp.id] = { x: dpCenterX, y: dropY, boxX: dpX, boxY: dropY };
 
         // Header Above Box: Clean, concise header to avoid horizontal collision
-        const roleText = `DROP POINT #${index + 1}${dp.km !== null && dp.km !== undefined ? ` &#x2022; ${dp.km} KM` : ''}`;
+        const roleText = `DROP POINT #${index + 1}${dp.km !== null && dp.km !== undefined ? ` • ${dp.km} KM` : ''}`;
         svgContent += renderSiteHeader(
           dpCenterX,
           dropY,
@@ -575,7 +575,7 @@ function renderFiberSchematic() {
               ${escapeXml(dp.point_type || 'Intermediate Drop Point')}
             </text>
             <text x="${dpCenterX}" y="${dropY + 66}" text-anchor="middle" font-size="10" fill="${mutedText}">
-              <tspan fill="#d97706">&#x24D8;</tspan> Hover for Dropped &amp; Passed Cores
+              Hover for Dropped &amp; Passed Cores
             </text>
           </g>
         `;

@@ -139,13 +139,46 @@
             <i class="mdi mdi-information-outline me-1"></i>Click any site name above the boxes to open its NetBox page. Scroll horizontally to view all drop points.
           </span>
           <div class="d-flex align-items-center gap-2">
+            <div class="btn-group btn-group-sm" role="group">
+              <button type="button" class="btn btn-outline-secondary" id="schematic-scroll-left" title="Scroll Left">
+                <i class="mdi mdi-chevron-left me-1"></i>Scroll Left
+              </button>
+              <button type="button" class="btn btn-outline-secondary" id="schematic-scroll-right" title="Scroll Right">
+                Scroll Right<i class="mdi mdi-chevron-right ms-1"></i>
+              </button>
+            </div>
             <span class="badge bg-secondary-subtle text-secondary-emphasis border">
-              <i class="mdi mdi-arrow-left-right me-1"></i>Horizontal Scrollable View
+              <i class="mdi mdi-arrow-left-right me-1"></i>Horizontal Scroll
             </span>
             <span class="badge bg-primary text-white">{{ drop_points|length }} Drop Points</span>
           </div>
         </div>
         
+        <style>
+          #schematic-container {
+            scrollbar-width: auto;
+            scrollbar-color: #0d6efd var(--bs-tertiary-bg, #f1f5f9);
+            cursor: grab;
+          }
+          #schematic-container:active {
+            cursor: grabbing;
+          }
+          #schematic-container::-webkit-scrollbar {
+            height: 10px;
+          }
+          #schematic-container::-webkit-scrollbar-track {
+            background: var(--bs-tertiary-bg, #f1f5f9);
+            border-radius: 5px;
+          }
+          #schematic-container::-webkit-scrollbar-thumb {
+            background: #0d6efd;
+            border-radius: 5px;
+          }
+          #schematic-container::-webkit-scrollbar-thumb:hover {
+            background: #0b5ed7;
+          }
+        </style>
+
         <!-- Django json_script to pass serialized nodes safely -->
         {{ schematic_nodes|json_script:"schematic-nodes-data" }}
 
@@ -591,6 +624,7 @@ function renderFiberSchematic() {
     }
 
     svg.innerHTML = svgContent;
+    setupScrollControls();
   } catch (err) {
     console.error("Schematic render error:", err);
     if (container) {
@@ -601,6 +635,48 @@ function renderFiberSchematic() {
         </div>
       `;
     }
+  }
+}
+
+// Smooth Horizontal Scroll Buttons & Drag-to-Pan
+function setupScrollControls() {
+  const container = document.getElementById('schematic-container');
+  const btnLeft = document.getElementById('schematic-scroll-left');
+  const btnRight = document.getElementById('schematic-scroll-right');
+  if (!container) return;
+
+  if (btnLeft && !btnLeft._hasListener) {
+    btnLeft._hasListener = true;
+    btnLeft.addEventListener('click', function() {
+      container.scrollBy({ left: -380, behavior: 'smooth' });
+    });
+  }
+  if (btnRight && !btnRight._hasListener) {
+    btnRight._hasListener = true;
+    btnRight.addEventListener('click', function() {
+      container.scrollBy({ left: 380, behavior: 'smooth' });
+    });
+  }
+
+  if (!container._hasDragListener) {
+    container._hasDragListener = true;
+    let isDown = false;
+    let startX, scrollLeft;
+
+    container.addEventListener('mousedown', (e) => {
+      if (e.target.closest('a')) return;
+      isDown = true;
+      startX = e.pageX - container.offsetLeft;
+      scrollLeft = container.scrollLeft;
+    });
+    window.addEventListener('mouseup', () => { isDown = false; });
+    container.addEventListener('mousemove', (e) => {
+      if (!isDown) return;
+      e.preventDefault();
+      const x = e.pageX - container.offsetLeft;
+      const walk = (x - startX) * 1.5;
+      container.scrollLeft = scrollLeft - walk;
+    });
   }
 }
 

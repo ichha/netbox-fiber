@@ -1,22 +1,36 @@
 from django.urls import path
-from . import views
+from netbox.views import generic
+from . import models, views
 
 urlpatterns = [
-    path('servers/', views.ZabbixServersView.as_view(), name='servers'),
-    path('proxies/', views.ZabbixProxiesView.as_view(), name='proxies'),
-    path('proxy-groups/', views.ZabbixProxyGroupsView.as_view(), name='proxy_groups'),
-    path('templates/', views.ZabbixTemplatesView.as_view(), name='templates'),
-    path('template-groups/', views.ZabbixTemplateGroupsView.as_view(), name='template_groups'),
-    path('macros/', views.ZabbixMacrosView.as_view(), name='macros'),
-    path('tags/', views.ZabbixTagsView.as_view(), name='tags'),
-    path('hostgroups/', views.ZabbixHostGroupsView.as_view(), name='hostgroups'),
-    path('create-hostgroup/', views.ZabbixCreateHostGroupView.as_view(), name='create_hostgroup'),
-    path('map-templates/', views.ZabbixMapTemplatesView.as_view(), name='map_templates'),
-    path('clear-settings/', views.ZabbixClearSettingsView.as_view(), name='clear_settings'),
-    path('remove-setting-field/', views.ZabbixRemoveSettingFieldView.as_view(), name='remove_setting_field'),
-    path('remove-template/', views.ZabbixRemoveTemplateView.as_view(), name='remove_template'),
-    path('hosts/', views.ZabbixHostsView.as_view(), name='hosts'),
-    path('sync-role/', views.ZabbixSyncRoleView.as_view(), name='sync_role'),
-    path('push-device/', views.ZabbixPushDeviceView.as_view(), name='push_device'),
-    path('bulk-push/', views.ZabbixBulkPushView.as_view(), name='bulk_push'),
+    # Fiber Vendors
+    path('vendors/', views.FiberVendorListView.as_view(), name='fibervendor_list'),
+    path('vendors/add/', views.FiberVendorEditView.as_view(), name='fibervendor_add'),
+    path('vendors/<int:pk>/', views.FiberVendorView.as_view(), name='fibervendor'),
+    path('vendors/<int:pk>/edit/', views.FiberVendorEditView.as_view(), name='fibervendor_edit'),
+    path('vendors/<int:pk>/delete/', views.FiberVendorDeleteView.as_view(), name='fibervendor_delete'),
+    path('vendors/<int:pk>/changelog/', generic.ObjectChangeLogView.as_view(), name='fibervendor_changelog', kwargs={'model': models.FiberVendor}),
+
+    # Fiber Routes
+    path('routes/', views.FiberRouteListView.as_view(), name='fiberroute_list'),
+    path('routes/add/', views.FiberRouteEditView.as_view(), name='fiberroute_add'),
+    path('routes/<int:pk>/', views.FiberRouteView.as_view(), name='fiberroute'),
+    path('routes/<int:pk>/edit/', views.FiberRouteEditView.as_view(), name='fiberroute_edit'),
+    path('routes/<int:pk>/delete/', views.FiberRouteDeleteView.as_view(), name='fiberroute_delete'),
+    path('routes/<int:pk>/changelog/', generic.ObjectChangeLogView.as_view(), name='fiberroute_changelog', kwargs={'model': models.FiberRoute}),
+
+    # Fiber Drop Points
+    path('drop-points/', views.FiberDropPointListView.as_view(), name='fiberdroppoint_list'),
+    path('drop-points/add/', views.FiberDropPointEditView.as_view(), name='fiberdroppoint_add'),
+    path('drop-points/<int:pk>/', views.FiberDropPointView.as_view(), name='fiberdroppoint'),
+    path('drop-points/<int:pk>/edit/', views.FiberDropPointEditView.as_view(), name='fiberdroppoint_edit'),
+    path('drop-points/<int:pk>/delete/', views.FiberDropPointDeleteView.as_view(), name='fiberdroppoint_delete'),
+    path('drop-points/<int:pk>/changelog/', generic.ObjectChangeLogView.as_view(), name='fiberdroppoint_changelog', kwargs={'model': models.FiberDropPoint}),
+
+    # Dedicated Vendor-Based Fiber Explorer Page
+    path('vendor-view/', views.VendorFiberView.as_view(), name='vendor_view'),
+
+    # Topology View
+    path('topology/', views.FiberTopologyView.as_view(), name='topology_view'),
+    path('api/topology-data/', views.FiberTopologyDataAPI.as_view(), name='topology_data_api'),
 ]

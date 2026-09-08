@@ -1,122 +1,80 @@
 import django_tables2 as tables
-from netbox.tables import NetBoxTable
-from .models import (
-    ZabbixServer, ZabbixProxy, ZabbixProxyGroup, ZabbixTemplate,
-    ZabbixTemplateGroup, ZabbixMacro, ZabbixTag, ZabbixHostGroup, ZabbixHost
-)
+from netbox.tables import NetBoxTable, columns
+from .models import FiberVendor, FiberRoute, FiberDropPoint
 
-class ZabbixServerTable(NetBoxTable):
+
+class FiberVendorTable(NetBoxTable):
     name = tables.Column(linkify=True)
-    url = tables.Column()
-    description = tables.Column()
+    contact_name = tables.Column(verbose_name='Contact Person')
+    contact_phone = tables.Column(verbose_name='Phone')
+    contact_email = tables.Column(verbose_name='Email')
+    total_routes_count = tables.Column(verbose_name='Total Routes')
+    total_distance_km = tables.Column(verbose_name='Total KM')
+    tags = columns.TagColumn(url_name='plugins:netbox_fiber:fibervendor_list')
+    actions = columns.ActionsColumn(actions=('edit', 'delete'))
 
     class Meta(NetBoxTable.Meta):
-        model = ZabbixServer
-        fields = ('pk', 'id', 'name', 'url', 'description')
-        default_columns = ('pk', 'name', 'url', 'description')
+        model = FiberVendor
+        fields = (
+            'pk', 'id', 'name', 'contact_name', 'contact_phone', 'contact_email',
+            'total_routes_count', 'total_distance_km', 'description', 'tags', 'actions'
+        )
+        default_columns = (
+            'pk', 'name', 'contact_name', 'contact_phone',
+            'total_routes_count', 'total_distance_km', 'actions'
+        )
 
 
-class ZabbixProxyTable(NetBoxTable):
+class FiberRouteTable(NetBoxTable):
     name = tables.Column(linkify=True)
-    zabbix_server = tables.Column(linkify=True)
-    proxyid = tables.Column()
-    status = tables.Column()
-    description = tables.Column()
+    vendor = tables.Column(linkify=True)
+    start_point = tables.Column(accessor='start_point_display', verbose_name='Starting Point')
+    end_point = tables.Column(accessor='end_point_display', verbose_name='End Point')
+    total_length_km = tables.Column(verbose_name='Length (KM)')
+    total_cores = tables.Column(verbose_name='Cores')
+    start_cores_dropped = tables.Column(verbose_name='Start Cores Dropped')
+    end_cores_dropped = tables.Column(verbose_name='End Cores Dropped')
+    cable_type = columns.ChoiceFieldColumn(verbose_name='Type')
+    status = columns.ChoiceFieldColumn()
+    tags = columns.TagColumn(url_name='plugins:netbox_fiber:fiberroute_list')
+    actions = columns.ActionsColumn(actions=('edit', 'delete'))
 
     class Meta(NetBoxTable.Meta):
-        model = ZabbixProxy
-        fields = ('pk', 'id', 'name', 'zabbix_server', 'proxyid', 'status', 'description')
-        default_columns = ('pk', 'name', 'zabbix_server', 'proxyid', 'status')
+        model = FiberRoute
+        fields = (
+            'pk', 'id', 'name', 'vendor', 'cable_type', 'status',
+            'start_point', 'end_point', 'total_length_km', 'total_cores',
+            'start_cores_dropped', 'end_cores_dropped', 'description', 'tags', 'actions'
+        )
+        default_columns = (
+            'pk', 'name', 'vendor', 'start_point', 'end_point',
+            'total_length_km', 'total_cores', 'start_cores_dropped', 'end_cores_dropped',
+            'status', 'actions'
+        )
 
 
-class ZabbixProxyGroupTable(NetBoxTable):
-    name = tables.Column(linkify=True)
-    zabbix_server = tables.Column(linkify=True)
-    proxy_groupid = tables.Column()
-    description = tables.Column()
-
-    class Meta(NetBoxTable.Meta):
-        model = ZabbixProxyGroup
-        fields = ('pk', 'id', 'name', 'zabbix_server', 'proxy_groupid', 'description')
-        default_columns = ('pk', 'name', 'zabbix_server', 'proxy_groupid')
-
-
-class ZabbixTemplateTable(NetBoxTable):
-    name = tables.Column(linkify=True)
-    zabbix_server = tables.Column(linkify=True)
-    templateid = tables.Column()
-    description = tables.Column()
-
-    class Meta(NetBoxTable.Meta):
-        model = ZabbixTemplate
-        fields = ('pk', 'id', 'name', 'zabbix_server', 'templateid', 'description')
-        default_columns = ('pk', 'name', 'zabbix_server', 'templateid')
-
-
-class ZabbixTemplateGroupTable(NetBoxTable):
-    name = tables.Column(linkify=True)
-    zabbix_server = tables.Column(linkify=True)
-    template_groupid = tables.Column()
-    description = tables.Column()
-
-    class Meta(NetBoxTable.Meta):
-        model = ZabbixTemplateGroup
-        fields = ('pk', 'id', 'name', 'zabbix_server', 'template_groupid', 'description')
-        default_columns = ('pk', 'name', 'zabbix_server', 'template_groupid')
-
-
-class ZabbixMacroTable(NetBoxTable):
-    macro = tables.Column(linkify=True)
-    zabbix_server = tables.Column(linkify=True)
-    value = tables.Column()
-    description = tables.Column()
-
-    class Meta(NetBoxTable.Meta):
-        model = ZabbixMacro
-        fields = ('pk', 'id', 'macro', 'zabbix_server', 'value', 'description')
-        default_columns = ('pk', 'macro', 'zabbix_server', 'value')
-
-
-class ZabbixTagTable(NetBoxTable):
-    name = tables.Column(linkify=True)
-    zabbix_server = tables.Column(linkify=True)
-    value = tables.Column()
-    description = tables.Column()
-
-    class Meta(NetBoxTable.Meta):
-        model = ZabbixTag
-        fields = ('pk', 'id', 'name', 'zabbix_server', 'value', 'description')
-        default_columns = ('pk', 'name', 'zabbix_server', 'value')
-
-
-class ZabbixHostGroupTable(NetBoxTable):
-    name = tables.Column(linkify=True)
-    zabbix_server = tables.Column(linkify=True)
-    groupid = tables.Column()
-    description = tables.Column()
-
-    class Meta(NetBoxTable.Meta):
-        model = ZabbixHostGroup
-        fields = ('pk', 'id', 'name', 'zabbix_server', 'groupid', 'description')
-        default_columns = ('pk', 'name', 'zabbix_server', 'groupid')
-
-
-class ZabbixHostTable(NetBoxTable):
-    name = tables.Column(linkify=True)
-    zabbix_server = tables.Column(linkify=True)
-    hostid = tables.Column()
-    status = tables.TemplateColumn(
-        template_code='''
-        {% if record.status == 0 %}
-            <span class="badge bg-success">Monitored</span>
-        {% else %}
-            <span class="badge bg-warning">Unmonitored</span>
-        {% endif %}
-        '''
+class FiberDropPointTable(NetBoxTable):
+    sequence = tables.Column(verbose_name='#')
+    name = tables.Column(linkify=True, verbose_name='Drop Point / Site')
+    fiber_route = tables.Column(linkify=True, verbose_name='Fiber Route')
+    site = tables.Column(linkify=True, verbose_name='NetBox Site')
+    point_type = columns.ChoiceFieldColumn(verbose_name='Point Type')
+    distance_km = tables.Column(verbose_name='Distance (KM)')
+    dropped_cores = tables.TemplateColumn(
+        template_code='<span class="badge bg-primary fs-6">{{ record.dropped_cores }}</span>',
+        verbose_name='Dropped Cores'
     )
-    description = tables.Column()
+    passed_cores = tables.Column(verbose_name='Passed Cores')
+    tags = columns.TagColumn(url_name='plugins:netbox_fiber:fiberdroppoint_list')
+    actions = columns.ActionsColumn(actions=('edit', 'delete'))
 
     class Meta(NetBoxTable.Meta):
-        model = ZabbixHost
-        fields = ('pk', 'id', 'name', 'zabbix_server', 'hostid', 'status', 'description')
-        default_columns = ('pk', 'name', 'zabbix_server', 'hostid', 'status')
+        model = FiberDropPoint
+        fields = (
+            'pk', 'id', 'sequence', 'name', 'fiber_route', 'site', 'point_type',
+            'distance_km', 'dropped_cores', 'passed_cores', 'tags', 'actions'
+        )
+        default_columns = (
+            'pk', 'sequence', 'name', 'fiber_route', 'site', 'point_type',
+            'distance_km', 'dropped_cores', 'actions'
+        )

@@ -1,0 +1,333 @@
+{% extends 'base/layout.html' %}
+{% load helpers %}
+
+{% block title %}Fiber Topology View - NetBox Fiber{% endblock %}
+
+{% block content %}
+<div class="container-fluid px-3">
+
+  <!-- Top Filter & Controls Bar -->
+  <div class="card shadow-sm border-0 mb-3">
+    <div class="card-body py-2 px-3">
+      <div class="d-flex flex-wrap align-items-center justify-content-between gap-3">
+        <!-- Left: Title & Stats -->
+        <div class="d-flex align-items-center gap-2">
+          <h4 class="fw-bold mb-0 text-primary">
+            <i class="mdi mdi-graph me-1"></i>Fiber Topology
+          </h4>
+          <span class="badge bg-secondary" id="topology-stats-badge">Loading...</span>
+        </div>
+
+        <!-- Middle: Filter by Vendor -->
+        <div class="d-flex align-items-center gap-2">
+          <label for="vendor-filter" class="small fw-bold text-nowrap mb-0">Vendor:</label>
+          <select id="vendor-filter" class="form-select form-select-sm" style="min-width: 200px;">
+            <option value="">All Vendors</option>
+            {% for v in vendors %}
+              <option value="{{ v.pk }}" {% if selected_vendor_id == v.pk|stringformat:"s" %}selected{% endif %}>{{ v.name }}</option>
+            {% endfor %}
+          </select>
+
+          <!-- Search Node -->
+          <div class="input-group input-group-sm" style="width: 200px;">
+            <input type="text" id="node-search" class="form-control" placeholder="Search site/joint...">
+            <button class="btn btn-outline-secondary" type="button" id="btn-search-node">
+              <i class="mdi mdi-magnify"></i>
+            </button>
+          </div>
+        </div>
+
+        <!-- Right: Graph Control Tools -->
+        <div class="btn-group btn-group-sm" role="group">
+          <button type="button" class="btn btn-outline-secondary" id="btn-fit" title="Fit to Screen">
+            <i class="mdi mdi-fit-to-screen me-1"></i>Fit
+          </button>
+          <button type="button" class="btn btn-outline-secondary" id="btn-zoom-in" title="Zoom In">
+            <i class="mdi mdi-magnify-plus"></i>
+          </button>
+          <button type="button" class="btn btn-outline-secondary" id="btn-zoom-out" title="Zoom Out">
+            <i class="mdi mdi-magnify-minus"></i>
+          </button>
+          <button type="button" class="btn btn-outline-secondary active" id="btn-physics" title="Toggle Physics Simulation">
+            <i class="mdi mdi-atom me-1"></i>Physics
+          </button>
+          <a href="{% url 'plugins:netbox_fiber:fiberroute_add' %}" class="btn btn-primary">
+            <i class="mdi mdi-plus-thick me-1"></i>Add Route
+          </a>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Main Canvas & Info Drawer -->
+  <div class="row g-3">
+    <!-- Graph Container -->
+    <div class="col-12 col-lg-9">
+      <div class="card shadow-sm border-0 position-relative" style="height: 720px; overflow: hidden;">
+        <!-- Loading Spinner Overlay -->
+        <div id="graph-loading" class="position-absolute top-0 start-0 w-100 h-100 d-flex flex-column align-items-center justify-content-center bg-body bg-opacity-75" style="z-index: 20;">
+          <div class="spinner-border text-primary mb-2" role="status"></div>
+          <span class="fw-semibold">Loading Fiber Network Graph...</span>
+        </div>
+
+        <!-- Legend Overlay -->
+        <div class="position-absolute top-0 end-0 m-3 p-2 bg-body rounded shadow-sm border small" style="z-index: 10; max-width: 220px; opacity: 0.92;">
+          <div class="fw-bold mb-1 border-bottom pb-1">Legend</div>
+          <div class="d-flex align-items-center mb-1"><span class="badge me-1" style="background:#198754; width:12px; height:12px; border-radius:50%; display:inline-block;"></span> Start Site</div>
+          <div class="d-flex align-items-center mb-1"><span class="badge me-1" style="background:#0d6efd; width:12px; height:12px; border-radius:50%; display:inline-block;"></span> End Site</div>
+          <div class="d-flex align-items-center mb-1"><span class="badge me-1" style="background:#0dcaf0; width:12px; height:12px; border-radius:50%; display:inline-block;"></span> Drop Site (NetBox)</div>
+          <div class="d-flex align-items-center mb-1"><span class="badge me-1" style="background:#ffc107; width:12px; height:12px; border-radius:50%; display:inline-block;"></span> Splice / Joint Box</div>
+          <div class="d-flex align-items-center"><span style="border-top: 3px solid #0d6efd; width: 16px; margin-right: 6px; display:inline-block;"></span> Fiber Cable</div>
+        </div>
+
+        <!-- The Canvas Container -->
+        <div id="topology-network" style="width: 100%; height: 100%;"></div>
+      </div>
+    </div>
+
+    <!-- Right Side Inspection Details Panel -->
+    <div class="col-12 col-lg-3">
+      <div class="card shadow-sm border-0 h-100" id="inspector-card">
+        <div class="card-header bg-body-tertiary py-2">
+          <h6 class="mb-0 fw-bold"><i class="mdi mdi-information-outline me-1"></i>Object Details</h6>
+        </div>
+        <div class="card-body overflow-auto" id="inspector-body">
+          <div class="text-center py-5 text-muted">
+            <i class="mdi mdi-cursor-default-click-outline fs-1 d-block mb-2 text-secondary"></i>
+            <h6>Click a Site or Cable</h6>
+            <p class="small">Select any site node or fiber cable link on the topology map to inspect dropped cores, length, and details.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<!-- Vis.js Network Library -->
+<script src="https://unpkg.com/vis-network/standalone/umd/vis-network.min.js"></script>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+  let network = null;
+  let nodesDataSet = null;
+  let edgesDataSet = null;
+  let physicsEnabled = true;
+
+  const container = document.getElementById('topology-network');
+  const loadingOverlay = document.getElementById('graph-loading');
+  const statsBadge = document.getElementById('topology-stats-badge');
+  const inspectorBody = document.getElementById('inspector-body');
+  const vendorSelect = document.getElementById('vendor-filter');
+
+  function fetchTopologyData() {
+    loadingOverlay.style.display = 'flex';
+    const vendorId = vendorSelect.value;
+    let url = "{% url 'plugins:netbox_fiber:topology_data_api' %}";
+    if (vendorId) {
+      url += '?vendor_id=' + encodeURIComponent(vendorId);
+    }
+
+    fetch(url)
+      .then(res => res.json())
+      .then(data => {
+        loadingOverlay.style.display = 'none';
+        renderNetwork(data);
+      })
+      .catch(err => {
+        loadingOverlay.style.display = 'none';
+        inspectorBody.innerHTML = `<div class="alert alert-danger small">Error loading topology: ${err}</div>`;
+      });
+  }
+
+  function renderNetwork(data) {
+    if (!data.nodes || data.nodes.length === 0) {
+      statsBadge.textContent = '0 Routes';
+      container.innerHTML = `
+        <div class="d-flex flex-column align-items-center justify-content-center h-100 text-muted">
+          <i class="mdi mdi-map-marker-off fs-1 mb-2"></i>
+          <h5>No Fiber Routes to Display</h5>
+          <p class="small">Add fiber routes with starting, drop, and end points to view topology.</p>
+          <a href="{% url 'plugins:netbox_fiber:fiberroute_add' %}" class="btn btn-sm btn-primary">Add Route</a>
+        </div>
+      `;
+      return;
+    }
+
+    statsBadge.textContent = `${data.summary.total_routes} Routes | ${data.summary.total_nodes} Sites/Joints`;
+
+    nodesDataSet = new vis.DataSet(data.nodes);
+    edgesDataSet = new vis.DataSet(data.edges);
+
+    const isDark = document.documentElement.getAttribute('data-bs-theme') === 'dark';
+
+    const options = {
+      nodes: {
+        shape: 'dot',
+        size: 22,
+        font: {
+          color: isDark ? '#ffffff' : '#212529',
+          size: 13,
+          face: 'system-ui, -apple-system, "Segoe UI", Roboto, sans-serif',
+          background: isDark ? 'rgba(33, 37, 41, 0.7)' : 'rgba(255, 255, 255, 0.8)',
+          strokeWidth: 0,
+        },
+        borderWidth: 2,
+        shadow: true
+      },
+      edges: {
+        smooth: {
+          type: 'continuous',
+          roundness: 0.2
+        },
+        font: {
+          color: isDark ? '#90cdf4' : '#0d6efd',
+          size: 11,
+          align: 'middle',
+          background: isDark ? 'rgba(33, 37, 41, 0.8)' : 'rgba(255, 255, 255, 0.85)',
+          strokeWidth: 0,
+        },
+        shadow: true
+      },
+      physics: {
+        enabled: physicsEnabled,
+        solver: 'forceAtlas2Based',
+        forceAtlas2Based: {
+          gravitationalConstant: -70,
+          centralGravity: 0.01,
+          springLength: 140,
+          springConstant: 0.08,
+          damping: 0.4
+        },
+        stabilization: {
+          iterations: 150
+        }
+      },
+      interaction: {
+        hover: true,
+        tooltipDelay: 200,
+        navigationButtons: false,
+        keyboard: true
+      }
+    };
+
+    network = new vis.Network(container, { nodes: nodesDataSet, edges: edgesDataSet }, options);
+
+    // Event: Click Node
+    network.on('click', function(params) {
+      if (params.nodes.length > 0) {
+        const nodeId = params.nodes[0];
+        const node = nodesDataSet.get(nodeId);
+        showNodeDetails(node);
+      } else if (params.edges.length > 0) {
+        const edgeId = params.edges[0];
+        const edge = edgesDataSet.get(edgeId);
+        showEdgeDetails(edge);
+      } else {
+        resetInspector();
+      }
+    });
+  }
+
+  function showNodeDetails(node) {
+    let siteLinkHtml = '';
+    if (node.site_id) {
+      siteLinkHtml = `<a href="/dcim/sites/${node.site_id}/" target="_blank" class="btn btn-sm btn-outline-primary w-100 mb-2"><i class="mdi mdi-open-in-new me-1"></i>Open NetBox Site</a>`;
+    }
+
+    inspectorBody.innerHTML = `
+      <div class="mb-3">
+        <span class="badge bg-secondary mb-1">${node.node_type ? node.node_type.replace('_', ' ').toUpperCase() : 'LOCATION'}</span>
+        <h5 class="fw-bold text-primary mb-1">${node.label}</h5>
+        <hr class="my-2"/>
+      </div>
+      <div class="small mb-3">
+        ${node.title || ''}
+      </div>
+      ${siteLinkHtml}
+    `;
+  }
+
+  function showEdgeDetails(edge) {
+    let routeLink = '';
+    if (edge.route_id) {
+      routeLink = `<a href="/plugins/fiber/routes/${edge.route_id}/" class="btn btn-sm btn-primary w-100 mt-3"><i class="mdi mdi-eye me-1"></i>View Route Details & Cores</a>`;
+    }
+
+    inspectorBody.innerHTML = `
+      <div class="mb-3">
+        <span class="badge bg-primary mb-1">FIBER ROUTE SEGMENT</span>
+        <h5 class="fw-bold mb-1">${edge.label || 'Fiber Cable Link'}</h5>
+        <hr class="my-2"/>
+      </div>
+      <div class="small mb-2">
+        ${edge.title || ''}
+      </div>
+      ${routeLink}
+    `;
+  }
+
+  function resetInspector() {
+    inspectorBody.innerHTML = `
+      <div class="text-center py-5 text-muted">
+        <i class="mdi mdi-cursor-default-click-outline fs-1 d-block mb-2 text-secondary"></i>
+        <h6>Click a Site or Cable</h6>
+        <p class="small">Select any site node or fiber cable link on the topology map to inspect dropped cores, length, and details.</p>
+      </div>
+    `;
+  }
+
+  // Controls Handlers
+  document.getElementById('btn-fit').addEventListener('click', () => {
+    if (network) network.fit({ animation: { duration: 500 } });
+  });
+
+  document.getElementById('btn-zoom-in').addEventListener('click', () => {
+    if (!network) return;
+    const scale = network.getScale();
+    network.moveTo({ scale: scale * 1.3, animation: { duration: 300 } });
+  });
+
+  document.getElementById('btn-zoom-out').addEventListener('click', () => {
+    if (!network) return;
+    const scale = network.getScale();
+    network.moveTo({ scale: scale * 0.7, animation: { duration: 300 } });
+  });
+
+  const btnPhysics = document.getElementById('btn-physics');
+  btnPhysics.addEventListener('click', () => {
+    physicsEnabled = !physicsEnabled;
+    if (network) network.setOptions({ physics: { enabled: physicsEnabled } });
+    btnPhysics.classList.toggle('active', physicsEnabled);
+  });
+
+  vendorSelect.addEventListener('change', fetchTopologyData);
+
+  // Search Node
+  function searchNode() {
+    const q = document.getElementById('node-search').value.trim().toLowerCase();
+    if (!q || !nodesDataSet || !network) return;
+    const matches = nodesDataSet.get({
+      filter: n => n.label.toLowerCase().includes(q)
+    });
+    if (matches.length > 0) {
+      const target = matches[0];
+      network.focus(target.id, {
+        scale: 1.2,
+        animation: { duration: 600 }
+      });
+      network.selectNodes([target.id]);
+      showNodeDetails(target);
+    }
+  }
+
+  document.getElementById('btn-search-node').addEventListener('click', searchNode);
+  document.getElementById('node-search').addEventListener('keypress', e => {
+    if (e.key === 'Enter') searchNode();
+  });
+
+  // Initial Load
+  fetchTopologyData();
+});
+</script>
+{% endblock %}

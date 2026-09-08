@@ -1,22 +1,16 @@
 from netbox.plugins import PluginConfig
 
-class NetBoxZabbixConfig(PluginConfig):
-    name = 'netbox_zabbix'
-    label = 'netbox_zabbix'
-    verbose_name = 'Zabbix Integration'
-    description = 'A NetBox plugin to synchronize data with Zabbix.'
+
+class NetBoxFiberConfig(PluginConfig):
+    name = 'netbox_fiber'
+    verbose_name = 'Fiber Management'
+    description = 'A NetBox plugin for managing optical fiber routes, vendors, drop points, core allocations, and topologies.'
     version = '0.1.0'
     author = 'Nepal Telecom'
     author_email = 'info@ntc.net.np'
-    base_url = 'zabbix'
+    base_url = 'fiber'
+    min_version = '4.0.0'
+    default_settings = {}
 
-    def ready(self):
-        super().ready()
-        try:
-            import netbox_zabbix.signals  # noqa: F401
-            from netbox_zabbix.signals import connect_zabbix_settings_signal
-            connect_zabbix_settings_signal()
-        except Exception:
-            pass
 
-config = NetBoxZabbixConfig
+config = NetBoxFiberConfig

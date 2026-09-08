@@ -1,0 +1,91 @@
+{% extends 'generic/object.html' %}
+{% load helpers %}
+
+{% block content %}
+<div class="row mb-3">
+  <div class="col col-md-6">
+    <div class="card">
+      <h5 class="card-header">Fiber Vendor Details</h5>
+      <div class="card-body">
+        <table class="table table-hover attr-table">
+          <tr>
+            <th scope="row">Name</th>
+            <td>{{ object.name }}</td>
+          </tr>
+          <tr>
+            <th scope="row">Slug</th>
+            <td>{{ object.slug }}</td>
+          </tr>
+          <tr>
+            <th scope="row">Contact Person</th>
+            <td>{{ object.contact_name|placeholder }}</td>
+          </tr>
+          <tr>
+            <th scope="row">Contact Phone</th>
+            <td>{{ object.contact_phone|placeholder }}</td>
+          </tr>
+          <tr>
+            <th scope="row">Contact Email</th>
+            <td>
+              {% if object.contact_email %}
+                <a href="mailto:{{ object.contact_email }}">{{ object.contact_email }}</a>
+              {% else %}
+                {{ ''|placeholder }}
+              {% endif %}
+            </td>
+          </tr>
+          <tr>
+            <th scope="row">Description</th>
+            <td>{{ object.description|placeholder }}</td>
+          </tr>
+        </table>
+      </div>
+    </div>
+  </div>
+  <div class="col col-md-6">
+    <div class="card">
+      <h5 class="card-header">Statistics & Metrics</h5>
+      <div class="card-body">
+        <div class="row text-center">
+          <div class="col-4 border-end">
+            <h3 class="fw-bold text-primary mb-0">{{ routes.count }}</h3>
+            <span class="text-muted small">Total Routes</span>
+          </div>
+          <div class="col-4 border-end">
+            <h3 class="fw-bold text-success mb-0">{{ total_km }}</h3>
+            <span class="text-muted small">Total KM</span>
+          </div>
+          <div class="col-4">
+            <h3 class="fw-bold text-info mb-0">{{ total_cores }}</h3>
+            <span class="text-muted small">Total Cores</span>
+          </div>
+        </div>
+        <div class="mt-4 text-center">
+          <a href="{% url 'plugins:netbox_fiber:vendor_view' %}?vendor_id={{ object.pk }}" class="btn btn-outline-primary btn-sm">
+            <i class="mdi mdi-view-dashboard-outline me-1"></i>Open in Vendor View
+          </a>
+          <a href="{% url 'plugins:netbox_fiber:topology_view' %}?vendor_id={{ object.pk }}" class="btn btn-outline-info btn-sm ms-2">
+            <i class="mdi mdi-graph me-1"></i>View Topology
+          </a>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="row">
+  <div class="col col-md-12">
+    <div class="card">
+      <div class="card-header d-flex justify-content-between align-items-center">
+        <h5 class="mb-0">Fiber Routes ({{ routes.count }})</h5>
+        <a href="{% url 'plugins:netbox_fiber:fiberroute_add' %}?vendor={{ object.pk }}" class="btn btn-sm btn-primary">
+          <i class="mdi mdi-plus-thick me-1"></i>Add Route
+        </a>
+      </div>
+      <div class="card-body table-responsive">
+        {% render_table route_table %}
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

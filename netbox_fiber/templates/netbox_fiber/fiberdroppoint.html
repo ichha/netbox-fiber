@@ -1,0 +1,87 @@
+{% extends 'generic/object.html' %}
+{% load helpers %}
+
+{% block content %}
+<div class="row mb-3">
+  <div class="col col-md-6">
+    <div class="card">
+      <h5 class="card-header">Drop Point Information</h5>
+      <div class="card-body">
+        <table class="table table-hover attr-table">
+          <tr>
+            <th scope="row">Name / Joint</th>
+            <td>{{ object.name }}</td>
+          </tr>
+          <tr>
+            <th scope="row">Fiber Route</th>
+            <td><a href="{{ object.fiber_route.get_absolute_url }}">{{ object.fiber_route.name }}</a></td>
+          </tr>
+          <tr>
+            <th scope="row">NetBox Site</th>
+            <td>
+              {% if object.site %}
+                <a href="{{ object.site.get_absolute_url }}">{{ object.site.name }}</a>
+              {% else %}
+                <span class="text-muted">Custom Point / Joint Enclosure</span>
+              {% endif %}
+            </td>
+          </tr>
+          <tr>
+            <th scope="row">Point Type</th>
+            <td>{{ object.get_point_type_display }}</td>
+          </tr>
+          <tr>
+            <th scope="row">Sequence along Route</th>
+            <td><span class="badge bg-secondary">#{{ object.sequence }}</span></td>
+          </tr>
+          <tr>
+            <th scope="row">Distance Marker (KM)</th>
+            <td>{% if object.distance_km %}{{ object.distance_km }} KM{% else %}{{ ''|placeholder }}{% endif %}</td>
+          </tr>
+          <tr>
+            <th scope="row">Description</th>
+            <td>{{ object.description|placeholder }}</td>
+          </tr>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <div class="col col-md-6">
+    <div class="card">
+      <h5 class="card-header">Core Termination & Dropping</h5>
+      <div class="card-body">
+        <div class="mb-3">
+          <label class="fw-bold text-success mb-1"><i class="mdi mdi-ray-vertex me-1"></i>Dropped Cores at this Location:</label>
+          <div>
+            {% for core in parsed_dropped_cores %}
+              <span class="badge bg-success fs-6 me-1">Core {{ core }}</span>
+            {% empty %}
+              <span class="text-muted">None specified</span>
+            {% endfor %}
+          </div>
+          <small class="text-muted">Raw string: <code>{{ object.dropped_cores }}</code></small>
+        </div>
+
+        {% if object.passed_cores %}
+        <div class="mb-3">
+          <label class="fw-bold text-info mb-1"><i class="mdi mdi-arrow-right-bold me-1"></i>Pass-Through Cores:</label>
+          <div>
+            {% for core in parsed_passed_cores %}
+              <span class="badge bg-info fs-6 me-1">Core {{ core }}</span>
+            {% endfor %}
+          </div>
+          <small class="text-muted">Raw string: <code>{{ object.passed_cores }}</code></small>
+        </div>
+        {% endif %}
+
+        <div class="alert alert-secondary mt-3 mb-0 py-2 small">
+          <i class="mdi mdi-information-outline me-1"></i>
+          This point is part of <strong><a href="{{ object.fiber_route.get_absolute_url }}">{{ object.fiber_route.name }}</a></strong> 
+          with <strong>{{ object.fiber_route.total_cores }}</strong> total cores.
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

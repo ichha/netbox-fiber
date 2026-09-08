@@ -146,8 +146,11 @@
           </div>
         </div>
         
+        <!-- Django json_script to pass serialized nodes safely -->
+        {{ schematic_nodes|json_script:"schematic-nodes-data" }}
+
         <!-- Interactive Schematic Canvas/SVG Container with Horizontal Scroll -->
-        <div id="schematic-container" style="width: 100%; overflow-x: auto; overflow-y: hidden; background: var(--bs-body-bg); border-radius: 8px; border: 1px solid var(--bs-border-color); padding: 15px;">
+        <div id="schematic-container" style="width: 100%; max-width: 100%; overflow-x: auto; overflow-y: hidden; background: var(--bs-body-bg); border-radius: 8px; border: 1px solid var(--bs-border-color); padding: 15px; position: relative;">
           <svg id="schematic-svg" style="font-family: system-ui, -apple-system, sans-serif; display: block;"></svg>
         </div>
       </div>
@@ -304,265 +307,315 @@
 </div>
 
 <script>
-document.addEventListener('DOMContentLoaded', function() {
-  const nodesData = {{ schematic_nodes_json|safe }};
-  const totalCores = {{ object.total_cores }};
-  const totalKm = "{{ object.total_length_km }} KM";
-  const vendorName = "{{ object.vendor.name|escapejs }}";
+function escapeXml(unsafe) {
+  if (unsafe === null || unsafe === undefined) return '';
+  return String(unsafe)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&apos;');
+}
 
+function renderFiberSchematic() {
+  const container = document.getElementById('schematic-container');
   const svg = document.getElementById('schematic-svg');
-  if (!svg) return;
+  if (!svg || !container) return;
 
   try {
-    const containerWidth = svg.parentElement.clientWidth - 40;
-  const dropNodes = nodesData.filter(n => n.type === 'drop');
-  const numDrops = dropNodes.length;
-
-  // Dynamically calculate width: each drop point gets at least 260px horizontal space
-  const dropSpacing = 260;
-  const minRequiredWidth = 50 + 160 + Math.max(1, numDrops) * dropSpacing + 160 + 80;
-  const width = Math.max(containerWidth, 980, minRequiredWidth);
-
-  // Dynamic box height and canvas height scaled to total cores
-  const coreSpacing = totalCores > 24 ? 20 : (totalCores > 12 ? 24 : 30);
-  const coresHeight = Math.max(1, totalCores - 1) * coreSpacing;
-  const boxH = Math.max(130, coresHeight + 60);
-  const dropBoxH = 85;
-  const dropBoxW = 200;
-  const boxW = 160;
-
-  const svgHeight = boxH + 280;
-  svg.setAttribute('viewBox', `0 0 ${width} ${svgHeight}`);
-  svg.style.width = `${width}px`;
-  svg.style.minWidth = `${width}px`;
-  svg.style.height = `${svgHeight}px`;
-
-  // Theme Colors
-  const isDark = document.documentElement.getAttribute('data-bs-theme') === 'dark';
-  const textColor = isDark ? '#f8f9fa' : '#1e293b';
-  const mutedText = isDark ? '#94a3b8' : '#64748b';
-  const boxBg = isDark ? '#1e293b' : '#ffffff';
-  const panelBg = isDark ? '#0f172a' : '#f8fafc';
-
-  const startX = 50;
-  const startY = 80;
-  const endX = width - boxW - 50;
-  const endY = startY;
-
-  const startNode = nodesData.find(n => n.type === 'start');
-  const endNode = nodesData.find(n => n.type === 'end');
-
-  let svgContent = '';
-
-  // 1. Top Route Title Bar
-  svgContent += `
-    <g>
-      <rect x="20" y="8" width="${width - 40}" height="32" rx="6" fill="${panelBg}" stroke="${isDark ? '#334155' : '#e2e8f0'}" stroke-width="1"/>
-      <text x="${width / 2}" y="29" text-anchor="middle" font-size="13" font-weight="bold" fill="${textColor}">
-        Vendor: <tspan fill="#0d6efd">${vendorName}</tspan> &bull; Total Route Distance: <tspan fill="#198754">${totalKm}</tspan> &bull; Cable Capacity: <tspan fill="#d97706">${totalCores} Cores</tspan>
-      </text>
-    </g>
-  `;
-
-  // Helper function to render site link
-  function renderSiteHeader(x, y, roleLabel, roleColor, siteName, url) {
-    let out = `
-      <text x="${x}" y="${y - 24}" text-anchor="middle" font-size="11" font-weight="bold" fill="${roleColor}" letter-spacing="1">
-        ${roleLabel.toUpperCase()}
-      </text>
-    `;
-    if (url) {
-      out += `
-        <a href="${url}" target="_blank" style="cursor: pointer;">
-          <text x="${x}" y="${y - 6}" text-anchor="middle" font-size="14" font-weight="bold" fill="#0d6efd" text-decoration="underline">
-            ${siteName} &#8599;
-          </text>
-        </a>
-      `;
-    } else {
-      out += `
-        <text x="${x}" y="${y - 6}" text-anchor="middle" font-size="14" font-weight="bold" fill="${textColor}">
-          ${siteName}
-        </text>
-      `;
+    const dataEl = document.getElementById('schematic-nodes-data');
+    let nodesData = [];
+    if (dataEl && dataEl.textContent) {
+      try {
+        nodesData = JSON.parse(dataEl.textContent);
+      } catch (e) {
+        console.error("Error parsing schematic data from json_script:", e);
+      }
     }
-    return out;
-  }
+    if (!nodesData || !nodesData.length) {
+      try {
+        nodesData = {{ schematic_nodes_json|safe }};
+      } catch (e) {
+        nodesData = [];
+      }
+    }
 
-  // 2. Start Site Header & Box
-  svgContent += renderSiteHeader(
-    startX + boxW / 2,
-    startY,
-    startNode ? startNode.point_name : 'STARTING POINT',
-    '#198754',
-    startNode ? startNode.name : 'Start',
-    startNode ? startNode.url : null
-  );
+    const totalCores = parseInt("{{ object.total_cores }}", 10) || 6;
+    const totalKm = "{{ object.total_length_km }} KM";
+    const vendorName = "{{ object.vendor.name|escapejs }}";
 
-  svgContent += `
-    <g>
-      <rect x="${startX}" y="${startY}" width="${boxW}" height="${boxH}" rx="8" fill="${boxBg}" stroke="#198754" stroke-width="2.5" />
-      <rect x="${startX}" y="${startY}" width="${boxW}" height="26" rx="8" fill="#198754" fill-opacity="0.15" />
-      <text x="${startX + boxW / 2}" y="${startY + 18}" text-anchor="middle" font-size="11" font-weight="bold" fill="#198754">
-        TERMINAL BLOCK
-      </text>
-    </g>
-  `;
+    const dropNodes = (nodesData || []).filter(n => n.type === 'drop');
+    const numDrops = dropNodes.length;
 
-  // 3. End Site Header & Box
-  svgContent += renderSiteHeader(
-    endX + boxW / 2,
-    endY,
-    endNode ? endNode.point_name : 'END POINT',
-    '#0d6efd',
-    endNode ? endNode.name : 'End',
-    endNode ? endNode.url : null
-  );
+    // Dynamically calculate width: each drop point gets generous 280px horizontal space
+    const dropSpacing = 280;
+    const minRequiredWidth = 50 + 160 + Math.max(1, numDrops + 1) * dropSpacing + 160 + 80;
+    const containerWidth = container.clientWidth ? (container.clientWidth - 30) : 1000;
+    const width = Math.max(containerWidth, minRequiredWidth, 1050);
 
-  svgContent += `
-    <g>
-      <rect x="${endX}" y="${endY}" width="${boxW}" height="${boxH}" rx="8" fill="${boxBg}" stroke="#0d6efd" stroke-width="2.5" />
-      <rect x="${endX}" y="${endY}" width="${boxW}" height="26" rx="8" fill="#0d6efd" fill-opacity="0.15" />
-      <text x="${endX + boxW / 2}" y="${endY + 18}" text-anchor="middle" font-size="11" font-weight="bold" fill="#0d6efd">
-        END TERMINALS
-      </text>
-    </g>
-  `;
+    // Dynamic box height and canvas height scaled to total cores
+    const coreSpacing = totalCores > 24 ? 22 : (totalCores > 12 ? 26 : 32);
+    const coresHeight = Math.max(1, totalCores - 1) * coreSpacing;
+    const boxH = Math.max(140, coresHeight + 70);
+    const dropBoxH = 90;
+    const dropBoxW = 210;
+    const boxW = 160;
 
-  // 4. Drop Point Boxes Below
-  const dropPositions = {};
-  const numDrops = dropNodes.length;
-  const dropY = startY + boxH + 90;
+    const svgHeight = boxH + 290;
 
-  if (numDrops > 0) {
-    const availableWidth = endX - (startX + boxW) - 60;
-    const step = availableWidth / (numDrops + 1);
+    svg.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
+    svg.setAttribute('xmlns:xlink', 'http://www.w3.org/1999/xlink');
+    svg.setAttribute('viewBox', `0 0 ${width} ${svgHeight}`);
+    svg.setAttribute('width', width);
+    svg.setAttribute('height', svgHeight);
+    svg.style.width = `${width}px`;
+    svg.style.minWidth = `${width}px`;
+    svg.style.height = `${svgHeight}px`;
 
-    dropNodes.forEach((dp, index) => {
-      const dpX = (startX + boxW + 30) + (index + 1) * step - (dropBoxW / 2);
-      const dpCenterX = dpX + dropBoxW / 2;
-      dropPositions[dp.id] = { x: dpCenterX, y: dropY, boxX: dpX, boxY: dropY };
+    // Theme Colors
+    const isDark = document.documentElement.getAttribute('data-bs-theme') === 'dark';
+    const textColor = isDark ? '#f8f9fa' : '#1e293b';
+    const mutedText = isDark ? '#94a3b8' : '#64748b';
+    const boxBg = isDark ? '#1e293b' : '#ffffff';
+    const panelBg = isDark ? '#0f172a' : '#f8fafc';
 
-      // Header Above Box
-      const roleText = `${dp.point_name} ${dp.km !== null ? `&bull; ${dp.km} KM` : ''}`;
-      svgContent += renderSiteHeader(
-        dpCenterX,
-        dropY,
-        roleText,
-        '#d97706',
-        dp.name,
-        dp.url
-      );
+    const startX = 50;
+    const startY = 85;
+    const endX = width - boxW - 50;
+    const endY = startY;
 
-      // Box
-      svgContent += `
-        <g>
-          <rect x="${dpX}" y="${dropY}" width="${dropBoxW}" height="${dropBoxH}" rx="8" fill="${boxBg}" stroke="#ffc107" stroke-width="2.5"/>
-          <rect x="${dpX}" y="${dropY}" width="${dropBoxW}" height="24" rx="8" fill="#ffc107" fill-opacity="0.18"/>
-          <text x="${dpCenterX}" y="${dropY + 16}" text-anchor="middle" font-size="11" font-weight="bold" fill="#b45309">
-            DROPPED CORES
-          </text>
-          <text x="${dpCenterX}" y="${dropY + 44}" text-anchor="middle" font-size="13" font-weight="bold" fill="#198754">
-            ${dp.dropped_cores && dp.dropped_cores.length ? dp.dropped_cores.map(c => `Core ${c}`).join(', ') : 'None'}
-          </text>
-          <text x="${dpCenterX}" y="${dropY + 68}" text-anchor="middle" font-size="10" fill="${mutedText}">
-            ${dp.point_type || 'Site / Joint'}
-          </text>
-        </g>
-      `;
-    });
-  }
+    const startNode = (nodesData || []).find(n => n.type === 'start');
+    const endNode = (nodesData || []).find(n => n.type === 'end');
 
-  // 5. Draw Individual Cores & Connecting Lines
-  const bundleStartX = startX + boxW;
-  const bundleEndX = endX;
-  const firstCoreY = startY + 44;
+    let svgContent = '';
 
-  const coreColors = [
-    '#2563eb', '#16a34a', '#dc2626', '#ea580c', '#9333ea', 
-    '#0891b2', '#d97706', '#059669', '#4f46e5', '#db2777', 
-    '#ca8a04', '#64748b'
-  ];
-
-  for (let c = 1; c <= totalCores; c++) {
-    const cY = firstCoreY + (c - 1) * coreSpacing;
-    const color = coreColors[(c - 1) % coreColors.length];
-
-    // Draw Start Terminal Pin
+    // 1. Top Route Title Bar
     svgContent += `
       <g>
-        <circle cx="${bundleStartX}" cy="${cY}" r="5" fill="${color}" stroke="#ffffff" stroke-width="2" />
-        <text x="${bundleStartX - 10}" y="${cY + 4}" text-anchor="end" font-size="11" font-weight="bold" fill="${textColor}">
-          Pin ${c}
+        <rect x="20" y="8" width="${width - 40}" height="32" rx="6" fill="${panelBg}" stroke="${isDark ? '#334155' : '#e2e8f0'}" stroke-width="1"/>
+        <text x="${width / 2}" y="29" text-anchor="middle" font-size="13" font-weight="bold" fill="${textColor}">
+          Vendor: <tspan fill="#0d6efd">${escapeXml(vendorName)}</tspan> &#x2022; Total Route Distance: <tspan fill="#198754">${escapeXml(totalKm)}</tspan> &#x2022; Cable Capacity: <tspan fill="#d97706">${totalCores} Cores</tspan>
         </text>
       </g>
     `;
 
-    // Find if this core drops at any drop point
-    let dropsAtPoint = null;
-    for (const dp of dropNodes) {
-      if (dp.dropped_cores && dp.dropped_cores.includes(c)) {
-        dropsAtPoint = dp;
-        break;
+    // Helper function to render site link
+    function renderSiteHeader(x, y, roleLabel, roleColor, siteName, url) {
+      let out = `
+        <text x="${x}" y="${y - 24}" text-anchor="middle" font-size="11" font-weight="bold" fill="${roleColor}" letter-spacing="0.5">
+          ${escapeXml(roleLabel).toUpperCase()}
+        </text>
+      `;
+      if (url) {
+        out += `
+          <a href="${escapeXml(url)}" xlink:href="${escapeXml(url)}" target="_blank" style="cursor: pointer;">
+            <text x="${x}" y="${y - 6}" text-anchor="middle" font-size="14" font-weight="bold" fill="#0d6efd" text-decoration="underline">
+              ${escapeXml(siteName)} &#x2197;
+            </text>
+          </a>
+        `;
+      } else {
+        out += `
+          <text x="${x}" y="${y - 6}" text-anchor="middle" font-size="14" font-weight="bold" fill="${textColor}">
+            ${escapeXml(siteName)}
+          </text>
+        `;
+      }
+      return out;
+    }
+
+    // 2. Start Site Header & Box
+    svgContent += renderSiteHeader(
+      startX + boxW / 2,
+      startY,
+      startNode ? startNode.point_name : 'STARTING POINT',
+      '#198754',
+      startNode ? startNode.name : 'Start',
+      startNode ? startNode.url : null
+    );
+
+    svgContent += `
+      <g>
+        <rect x="${startX}" y="${startY}" width="${boxW}" height="${boxH}" rx="8" fill="${boxBg}" stroke="#198754" stroke-width="2.5" />
+        <rect x="${startX}" y="${startY}" width="${boxW}" height="26" rx="8" fill="#198754" fill-opacity="0.15" />
+        <text x="${startX + boxW / 2}" y="${startY + 18}" text-anchor="middle" font-size="11" font-weight="bold" fill="#198754">
+          TERMINAL BLOCK
+        </text>
+      </g>
+    `;
+
+    // 3. End Site Header & Box
+    svgContent += renderSiteHeader(
+      endX + boxW / 2,
+      endY,
+      endNode ? endNode.point_name : 'END POINT',
+      '#0d6efd',
+      endNode ? endNode.name : 'End',
+      endNode ? endNode.url : null
+    );
+
+    svgContent += `
+      <g>
+        <rect x="${endX}" y="${endY}" width="${boxW}" height="${boxH}" rx="8" fill="${boxBg}" stroke="#0d6efd" stroke-width="2.5" />
+        <rect x="${endX}" y="${endY}" width="${boxW}" height="26" rx="8" fill="#0d6efd" fill-opacity="0.15" />
+        <text x="${endX + boxW / 2}" y="${endY + 18}" text-anchor="middle" font-size="11" font-weight="bold" fill="#0d6efd">
+          END TERMINALS
+        </text>
+      </g>
+    `;
+
+    // 4. Drop Point Boxes Below
+    const dropPositions = {};
+    const dropY = startY + boxH + 90;
+
+    if (numDrops > 0) {
+      const availableWidth = endX - (startX + boxW) - 60;
+      const step = availableWidth / (numDrops + 1);
+
+      dropNodes.forEach((dp, index) => {
+        const dpCenterX = (startX + boxW + 30) + (index + 1) * step;
+        const dpX = dpCenterX - (dropBoxW / 2);
+        dropPositions[dp.id] = { x: dpCenterX, y: dropY, boxX: dpX, boxY: dropY };
+
+        // Header Above Box
+        const roleText = `${dp.point_name || 'Drop Point'}${dp.km !== null && dp.km !== undefined ? ` &#x2022; ${dp.km} KM` : ''}`;
+        svgContent += renderSiteHeader(
+          dpCenterX,
+          dropY,
+          roleText,
+          '#d97706',
+          dp.name,
+          dp.url
+        );
+
+        // Box
+        svgContent += `
+          <g>
+            <rect x="${dpX}" y="${dropY}" width="${dropBoxW}" height="${dropBoxH}" rx="8" fill="${boxBg}" stroke="#ffc107" stroke-width="2.5"/>
+            <rect x="${dpX}" y="${dropY}" width="${dropBoxW}" height="24" rx="8" fill="#ffc107" fill-opacity="0.18"/>
+            <text x="${dpCenterX}" y="${dropY + 16}" text-anchor="middle" font-size="11" font-weight="bold" fill="#b45309">
+              DROPPED CORES
+            </text>
+            <text x="${dpCenterX}" y="${dropY + 44}" text-anchor="middle" font-size="13" font-weight="bold" fill="#198754">
+              ${dp.dropped_cores && dp.dropped_cores.length ? dp.dropped_cores.map(c => `Core ${c}`).join(', ') : 'None'}
+            </text>
+            <text x="${dpCenterX}" y="${dropY + 68}" text-anchor="middle" font-size="10" fill="${mutedText}">
+              ${escapeXml(dp.point_type || 'Site / Joint')}
+            </text>
+          </g>
+        `;
+      });
+    }
+
+    // 5. Draw Individual Cores & Connecting Lines
+    const bundleStartX = startX + boxW;
+    const bundleEndX = endX;
+    const firstCoreY = startY + 44;
+
+    const coreColors = [
+      '#2563eb', '#16a34a', '#dc2626', '#ea580c', '#9333ea', 
+      '#0891b2', '#d97706', '#059669', '#4f46e5', '#db2777', 
+      '#ca8a04', '#64748b'
+    ];
+
+    for (let c = 1; c <= totalCores; c++) {
+      const cY = firstCoreY + (c - 1) * coreSpacing;
+      const color = coreColors[(c - 1) % coreColors.length];
+
+      // Draw Start Terminal Pin
+      svgContent += `
+        <g>
+          <circle cx="${bundleStartX}" cy="${cY}" r="5" fill="${color}" stroke="#ffffff" stroke-width="2" />
+          <text x="${bundleStartX - 10}" y="${cY + 4}" text-anchor="end" font-size="11" font-weight="bold" fill="${textColor}">
+            Pin ${c}
+          </text>
+        </g>
+      `;
+
+      // Find if this core drops at any drop point
+      let dropsAtPoint = null;
+      for (const dp of dropNodes) {
+        if (dp.dropped_cores && dp.dropped_cores.includes(c)) {
+          dropsAtPoint = dp;
+          break;
+        }
+      }
+
+      if (!dropsAtPoint) {
+        // Passes straight to End Site Box
+        const midX = (bundleStartX + bundleEndX) / 2;
+        svgContent += `
+          <g>
+            <!-- Horizontal Line -->
+            <line x1="${bundleStartX}" y1="${cY}" x2="${bundleEndX}" y2="${cY}" stroke="${color}" stroke-width="2.5" />
+            <!-- End Terminal Pin -->
+            <circle cx="${bundleEndX}" cy="${cY}" r="5" fill="${color}" stroke="#ffffff" stroke-width="2" />
+            <text x="${bundleEndX + 10}" y="${cY + 4}" text-anchor="start" font-size="11" font-weight="bold" fill="${textColor}">
+              Term ${c}
+            </text>
+            <!-- Center Badge -->
+            <rect x="${midX - 28}" y="${cY - 10}" width="56" height="20" rx="4" fill="${color}" stroke="#ffffff" stroke-width="1"/>
+            <text x="${midX}" y="${cY + 4}" text-anchor="middle" font-size="11" font-weight="bold" fill="#ffffff">
+              Core ${c}
+            </text>
+          </g>
+        `;
+      } else {
+        // Drops into dropsAtPoint
+        const pos = dropPositions[dropsAtPoint.id];
+        const coreIdx = Math.max(0, dropsAtPoint.dropped_cores ? dropsAtPoint.dropped_cores.indexOf(c) : 0);
+        const turnX = pos ? (pos.boxX + 35 + (coreIdx * 32)) : (bundleStartX + 120);
+
+        svgContent += `
+          <g>
+            <!-- Horizontal Path from Start to Turn -->
+            <line x1="${bundleStartX}" y1="${cY}" x2="${turnX}" y2="${cY}" stroke="${color}" stroke-width="2.5" />
+            <!-- Branch Downwards into Drop Box -->
+            <path d="M ${turnX} ${cY} Q ${turnX} ${cY + 16} ${turnX} ${dropY}" fill="none" stroke="${color}" stroke-width="2.5" />
+            <circle cx="${turnX}" cy="${dropY}" r="4.5" fill="${color}" stroke="#ffffff" stroke-width="1.5"/>
+
+            <!-- Label on Horizontal Section -->
+            <rect x="${bundleStartX + 15 + ((c-1)%3)*15}" y="${cY - 10}" width="54" height="20" rx="4" fill="${color}" stroke="#ffffff" stroke-width="1"/>
+            <text x="${bundleStartX + 42 + ((c-1)%3)*15}" y="${cY + 4}" text-anchor="middle" font-size="11" font-weight="bold" fill="#ffffff">
+              Core ${c}
+            </text>
+
+            <!-- Label on Vertical Drop Section -->
+            <rect x="${turnX + 6}" y="${(cY + dropY) / 2 - 10}" width="60" height="20" rx="4" fill="${color}" stroke="#ffffff" stroke-width="1"/>
+            <text x="${turnX + 36}" y="${(cY + dropY) / 2 + 4}" text-anchor="middle" font-size="10" font-weight="bold" fill="#ffffff">
+              Core ${c} &#x2193;
+            </text>
+          </g>
+        `;
       }
     }
-
-    if (!dropsAtPoint) {
-      // Passes straight to End Site Box
-      const midX = (bundleStartX + bundleEndX) / 2;
-      svgContent += `
-        <g>
-          <!-- Horizontal Line -->
-          <line x1="${bundleStartX}" y1="${cY}" x2="${bundleEndX}" y2="${cY}" stroke="${color}" stroke-width="2.5" />
-          <!-- End Terminal Pin -->
-          <circle cx="${bundleEndX}" cy="${cY}" r="5" fill="${color}" stroke="#ffffff" stroke-width="2" />
-          <text x="${bundleEndX + 10}" y="${cY + 4}" text-anchor="start" font-size="11" font-weight="bold" fill="${textColor}">
-            Term ${c}
-          </text>
-          <!-- Center Badge -->
-          <rect x="${midX - 28}" y="${cY - 10}" width="56" height="20" rx="4" fill="${color}" stroke="#ffffff" stroke-width="1"/>
-          <text x="${midX}" y="${cY + 4}" text-anchor="middle" font-size="11" font-weight="bold" fill="#ffffff">
-            Core ${c}
-          </text>
-        </g>
-      `;
-    } else {
-      // Drops into dropsAtPoint
-      const pos = dropPositions[dropsAtPoint.id];
-      const coreIdx = dropsAtPoint.dropped_cores.indexOf(c);
-      const turnX = pos.boxX + 35 + (coreIdx * 35);
-
-      svgContent += `
-        <g>
-          <!-- Horizontal Path from Start to Turn -->
-          <line x1="${bundleStartX}" y1="${cY}" x2="${turnX}" y2="${cY}" stroke="${color}" stroke-width="2.5" />
-          <!-- Branch Downwards into Drop Box -->
-          <path d="M ${turnX} ${cY} Q ${turnX} ${cY + 16} ${turnX} ${dropY}" fill="none" stroke="${color}" stroke-width="2.5" />
-          <circle cx="${turnX}" cy="${dropY}" r="4.5" fill="${color}" stroke="#ffffff" stroke-width="1.5"/>
-
-          <!-- Label on Horizontal Section -->
-          <rect x="${bundleStartX + 15 + ((c-1)%3)*15}" y="${cY - 10}" width="54" height="20" rx="4" fill="${color}" stroke="#ffffff" stroke-width="1"/>
-          <text x="${bundleStartX + 42 + ((c-1)%3)*15}" y="${cY + 4}" text-anchor="middle" font-size="11" font-weight="bold" fill="#ffffff">
-            Core ${c}
-          </text>
-
-          <!-- Label on Vertical Drop Section -->
-          <rect x="${turnX + 6}" y="${(cY + dropY) / 2 - 10}" width="58" height="20" rx="4" fill="${color}" stroke="#ffffff" stroke-width="1"/>
-          <text x="${turnX + 35}" y="${(cY + dropY) / 2 + 4}" text-anchor="middle" font-size="10" font-weight="bold" fill="#ffffff">
-            Core ${c} &#8595;
-          </text>
-        </g>
-      `;
-    }
-  }
 
     svg.innerHTML = svgContent;
   } catch (err) {
     console.error("Schematic render error:", err);
-    if (svg && svg.parentElement) {
-      svg.parentElement.innerHTML = `<div class="alert alert-warning p-3 mb-0 small"><strong>Schematic Display Error:</strong> ${err.message || err}</div>`;
+    if (container) {
+      container.innerHTML = `
+        <div class="alert alert-warning p-3 m-2">
+          <h6 class="alert-heading fw-bold mb-1"><i class="mdi mdi-alert me-1"></i>Schematic View Error</h6>
+          <p class="mb-0 small">${escapeXml(err.message || String(err))}</p>
+        </div>
+      `;
     }
   }
+}
+
+// Multi-phase initialization to ensure execution in NetBox / HTMX / direct load:
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', renderFiberSchematic);
+} else {
+  renderFiberSchematic();
+}
+window.addEventListener('load', renderFiberSchematic);
+document.addEventListener('htmx:load', renderFiberSchematic);
+document.addEventListener('htmx:afterSettle', renderFiberSchematic);
+window.addEventListener('resize', function() {
+  clearTimeout(window._schematicResizeTimer);
+  window._schematicResizeTimer = setTimeout(renderFiberSchematic, 150);
 });
 </script>
 {% endblock %}

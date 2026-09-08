@@ -106,7 +106,7 @@ class FiberRouteView(generic.ObjectView):
             'name': instance.end_point_display,
             'point_name': 'End Point',
             'type': 'end',
-            'km': float(instance.total_length_km),
+            'km': float(instance.total_length_km) if instance.total_length_km else 0.0,
             'url': instance.end_site.get_absolute_url() if instance.end_site else None,
             'dropped_cores': instance.parsed_end_cores,
         })
@@ -115,6 +115,7 @@ class FiberRouteView(generic.ObjectView):
             'drop_points': drop_points,
             'drop_points_table': FiberDropPointTable(drop_points),
             'core_map': core_map,
+            'schematic_nodes': schematic_nodes,
             'schematic_nodes_json': json.dumps(schematic_nodes),
             'total_cores_range': list(range(1, instance.total_cores + 1)),
         }

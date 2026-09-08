@@ -15,7 +15,7 @@
           <h4 class="fw-bold mb-0 text-primary">
             <i class="mdi mdi-graph me-1"></i>Fiber Topology
           </h4>
-          <span class="badge bg-secondary" id="topology-stats-badge">Loading...</span>
+          <span class="badge bg-primary text-white" id="topology-stats-badge">Loading...</span>
         </div>
 
         <!-- Middle: Filter by Vendor -->
@@ -65,7 +65,7 @@
     <div class="col-12 col-lg-9">
       <div class="card shadow-sm border-0 position-relative" style="height: 720px; overflow: hidden;">
         <!-- Loading Spinner Overlay -->
-        <div id="graph-loading" class="position-absolute top-0 start-0 w-100 h-100 d-flex flex-column align-items-center justify-content-center bg-body bg-opacity-75" style="z-index: 20;">
+        <div id="graph-loading" class="position-absolute top-0 start-0 w-100 h-100 flex-column align-items-center justify-content-center bg-body bg-opacity-75" style="z-index: 20; display: flex; transition: opacity 0.25s ease;">
           <div class="spinner-border text-primary mb-2" role="status"></div>
           <span class="fw-semibold">Loading Fiber Network Graph...</span>
         </div>
@@ -120,8 +120,28 @@ document.addEventListener('DOMContentLoaded', function() {
   const inspectorBody = document.getElementById('inspector-body');
   const vendorSelect = document.getElementById('vendor-filter');
 
+  function hideLoading() {
+    if (loadingOverlay) {
+      loadingOverlay.style.setProperty('display', 'none', 'important');
+      loadingOverlay.style.opacity = '0';
+      loadingOverlay.style.pointerEvents = 'none';
+      loadingOverlay.classList.remove('d-flex');
+      loadingOverlay.classList.add('d-none');
+    }
+  }
+
+  function showLoading() {
+    if (loadingOverlay) {
+      loadingOverlay.style.setProperty('display', 'flex', 'important');
+      loadingOverlay.style.opacity = '1';
+      loadingOverlay.style.pointerEvents = 'auto';
+      loadingOverlay.classList.remove('d-none');
+      loadingOverlay.classList.add('d-flex');
+    }
+  }
+
   function fetchTopologyData() {
-    loadingOverlay.style.display = 'flex';
+    showLoading();
     const vendorId = vendorSelect.value;
     let url = "{% url 'plugins:netbox_fiber:topology_data_api' %}";
     if (vendorId) {
@@ -131,16 +151,18 @@ document.addEventListener('DOMContentLoaded', function() {
     fetch(url)
       .then(res => res.json())
       .then(data => {
-        loadingOverlay.style.display = 'none';
+        hideLoading();
         renderNetwork(data);
       })
       .catch(err => {
-        loadingOverlay.style.display = 'none';
+        hideLoading();
         inspectorBody.innerHTML = `<div class="alert alert-danger small">Error loading topology: ${err}</div>`;
       });
   }
 
   function renderNetwork(data) {
+    hideLoading();
+
     if (!data.nodes || data.nodes.length === 0) {
       statsBadge.textContent = '0 Routes';
       container.innerHTML = `
@@ -164,12 +186,12 @@ document.addEventListener('DOMContentLoaded', function() {
     const options = {
       nodes: {
         shape: 'dot',
-        size: 22,
+        size: 24,
         font: {
-          color: isDark ? '#ffffff' : '#212529',
+          color: isDark ? '#f8f9fa' : '#0f172a',
           size: 13,
           face: 'system-ui, -apple-system, "Segoe UI", Roboto, sans-serif',
-          background: isDark ? 'rgba(33, 37, 41, 0.7)' : 'rgba(255, 255, 255, 0.8)',
+          background: isDark ? 'rgba(30, 41, 59, 0.9)' : 'rgba(255, 255, 255, 0.95)',
           strokeWidth: 0,
         },
         borderWidth: 2,
@@ -212,6 +234,10 @@ document.addEventListener('DOMContentLoaded', function() {
     };
 
     network = new vis.Network(container, { nodes: nodesDataSet, edges: edgesDataSet }, options);
+
+    network.once('afterDrawing', hideLoading);
+    network.once('stabilizationIterationsDone', hideLoading);
+    setTimeout(hideLoading, 500);
 
     // Event: Click Node
     network.on('click', function(params) {

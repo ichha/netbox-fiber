@@ -300,7 +300,6 @@ class FiberTopologyDataAPI(View):
                     'color': c,
                     'shape': 'dot',
                     'size': 24 if 'site' in node_type else 18,
-                    'font': {'color': '#ffffff', 'size': 14, 'face': 'arial', 'strokeWidth': 3, 'strokeColor': '#212529'},
                     'site_id': site_obj.pk if site_obj else None,
                     'node_type': node_type,
                 }

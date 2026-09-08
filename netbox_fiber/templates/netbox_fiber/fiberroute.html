@@ -177,6 +177,11 @@
           #schematic-container::-webkit-scrollbar-thumb:hover {
             background: #0b5ed7;
           }
+          .schematic-dp-group:hover .drop-box-rect {
+            stroke: #d97706 !important;
+            stroke-width: 3.5px !important;
+            filter: drop-shadow(0 4px 10px rgba(217, 119, 6, 0.3));
+          }
         </style>
 
         <!-- Django json_script to pass serialized nodes safely -->
@@ -185,6 +190,15 @@
         <!-- Interactive Schematic Canvas/SVG Container with Horizontal Scroll -->
         <div id="schematic-container" style="width: 100%; max-width: 100%; overflow-x: auto; overflow-y: hidden; background: var(--bs-body-bg); border-radius: 8px; border: 1px solid var(--bs-border-color); padding: 15px; position: relative;">
           <svg id="schematic-svg" style="font-family: system-ui, -apple-system, sans-serif; display: block;"></svg>
+
+          <!-- Floating Interactive Hover Tooltip for Drop Points -->
+          <div id="schematic-tooltip" class="card shadow-lg border" style="position: absolute; display: none; z-index: 1050; pointer-events: none; min-width: 260px; max-width: 380px; border-radius: 8px; font-size: 12px; background: var(--bs-body-bg, #ffffff);">
+            <div class="card-header py-1 px-3 fw-bold d-flex justify-content-between align-items-center bg-body-tertiary">
+              <span id="tooltip-title" class="text-primary fw-bold">Drop Point</span>
+              <span class="badge bg-warning text-dark" id="tooltip-badge">Intermediate</span>
+            </div>
+            <div class="card-body p-2" id="tooltip-body"></div>
+          </div>
         </div>
       </div>
     </div>
@@ -532,8 +546,8 @@ function renderFiberSchematic() {
         const dpX = dpCenterX - (dropBoxW / 2);
         dropPositions[dp.id] = { x: dpCenterX, y: dropY, boxX: dpX, boxY: dropY };
 
-        // Header Above Box
-        const roleText = `${dp.point_name || 'Drop Point'}${dp.km !== null && dp.km !== undefined ? ` &#x2022; ${dp.km} KM` : ''}`;
+        // Header Above Box: Clean, concise header to avoid horizontal collision
+        const roleText = `DROP POINT #${index + 1}${dp.km !== null && dp.km !== undefined ? ` &#x2022; ${dp.km} KM` : ''}`;
         svgContent += renderSiteHeader(
           dpCenterX,
           dropY,
@@ -543,22 +557,25 @@ function renderFiberSchematic() {
           dp.url
         );
 
-        // Box
+        // Box: Clean and uncrowded. Dropped and Passed cores are revealed only on hover!
+        const droppedList = dp.dropped_cores && dp.dropped_cores.length ? dp.dropped_cores : [];
+        const passedList = dp.passed_cores && dp.passed_cores.length ? dp.passed_cores : [];
+        const droppedCount = droppedList.length;
+        const passedCount = passedList.length;
+
         svgContent += `
-          <g>
-            <rect x="${dpX}" y="${dropY}" width="${dropBoxW}" height="${dropBoxH}" rx="8" fill="${boxBg}" stroke="#ffc107" stroke-width="2.5"/>
+          <g class="schematic-dp-group" data-dp-id="${escapeXml(dp.id)}" style="cursor: pointer;">
+            <title>${escapeXml(dp.name)} (${escapeXml(dp.point_type || 'Intermediate Drop Point')})&#10;Distance: ${dp.km !== null && dp.km !== undefined ? dp.km : 0} KM&#10;Dropped Cores (${droppedCount}): ${droppedCount ? droppedList.map(c => `Core ${c}`).join(', ') : 'None'}&#10;Passed Cores (${passedCount}): ${passedCount ? passedList.map(c => `Core ${c}`).join(', ') : 'None'}</title>
+            <rect x="${dpX}" y="${dropY}" width="${dropBoxW}" height="${dropBoxH}" rx="8" fill="${boxBg}" stroke="#ffc107" stroke-width="2.5" class="drop-box-rect"/>
             <rect x="${dpX}" y="${dropY}" width="${dropBoxW}" height="22" rx="8" fill="#ffc107" fill-opacity="0.18"/>
             <text x="${dpCenterX}" y="${dropY + 15}" text-anchor="middle" font-size="10" font-weight="bold" fill="#b45309">
               DROP POINT ENCLOSURE
             </text>
-            <text x="${dpCenterX}" y="${dropY + 38}" text-anchor="middle" font-size="11" font-weight="bold" fill="#198754">
-              Dropped: ${dp.dropped_cores && dp.dropped_cores.length ? dp.dropped_cores.map(c => `Core ${c}`).join(', ') : 'None'}
+            <text x="${dpCenterX}" y="${dropY + 44}" text-anchor="middle" font-size="12" font-weight="bold" fill="${textColor}">
+              ${escapeXml(dp.point_type || 'Intermediate Drop Point')}
             </text>
-            <text x="${dpCenterX}" y="${dropY + 56}" text-anchor="middle" font-size="11" font-weight="bold" fill="#0d6efd">
-              Passed: ${dp.passed_cores && dp.passed_cores.length ? dp.passed_cores.map(c => `Core ${c}`).join(', ') : 'None'}
-            </text>
-            <text x="${dpCenterX}" y="${dropY + 75}" text-anchor="middle" font-size="10" fill="${mutedText}">
-              ${escapeXml(dp.point_type || 'Site / Joint')}
+            <text x="${dpCenterX}" y="${dropY + 66}" text-anchor="middle" font-size="10" fill="${mutedText}">
+              <tspan fill="#d97706">&#x24D8;</tspan> Hover for Dropped &amp; Passed Cores
             </text>
           </g>
         `;
@@ -623,6 +640,7 @@ function renderFiberSchematic() {
         const pos = dropPositions[dropsAtPoint.id];
         const coreIdx = Math.max(0, dropsAtPoint.dropped_cores ? dropsAtPoint.dropped_cores.indexOf(c) : 0);
         const turnX = pos ? (pos.boxX + 35 + (coreIdx * 32)) : (bundleStartX + 120);
+        const labelY = ((cY + dropY) / 2) - 15 + (coreIdx % 3) * 22;
 
         svgContent += `
           <g>
@@ -639,8 +657,8 @@ function renderFiberSchematic() {
             </text>
 
             <!-- Label on Vertical Drop Section -->
-            <rect x="${turnX + 6}" y="${(cY + dropY) / 2 - 10}" width="60" height="20" rx="4" fill="${color}" stroke="#ffffff" stroke-width="1"/>
-            <text x="${turnX + 36}" y="${(cY + dropY) / 2 + 4}" text-anchor="middle" font-size="10" font-weight="bold" fill="#ffffff">
+            <rect x="${turnX + 5}" y="${labelY - 10}" width="56" height="18" rx="4" fill="${color}" stroke="#ffffff" stroke-width="1"/>
+            <text x="${turnX + 33}" y="${labelY + 3}" text-anchor="middle" font-size="10" font-weight="bold" fill="#ffffff">
               Core ${c} &#x2193;
             </text>
           </g>
@@ -650,6 +668,7 @@ function renderFiberSchematic() {
 
     svg.innerHTML = svgContent;
     setupScrollControls();
+    setupTooltip(nodesData);
   } catch (err) {
     console.error("Schematic render error:", err);
     if (container) {
@@ -703,6 +722,117 @@ function setupScrollControls() {
       container.scrollLeft = scrollLeft - walk;
     });
   }
+}
+
+// Interactive Tooltip on Hovering Drop Point Enclosures
+function setupTooltip(nodesData) {
+  const container = document.getElementById('schematic-container');
+  const tooltip = document.getElementById('schematic-tooltip');
+  if (!container || !tooltip) return;
+
+  const dropNodes = (nodesData || []).filter(n => n.type === 'drop');
+
+  function showTooltip(e, dp) {
+    const titleEl = document.getElementById('tooltip-title');
+    const badgeEl = document.getElementById('tooltip-badge');
+    const bodyEl = document.getElementById('tooltip-body');
+    if (!titleEl || !badgeEl || !bodyEl) return;
+
+    titleEl.textContent = dp.name || 'Drop Point';
+    badgeEl.textContent = dp.km !== null && dp.km !== undefined ? `${dp.km} KM` : (dp.point_type || 'Drop Point');
+
+    const droppedList = dp.dropped_cores && dp.dropped_cores.length ? dp.dropped_cores : [];
+    const passedList = dp.passed_cores && dp.passed_cores.length ? dp.passed_cores : [];
+
+    let html = `
+      <div class="mb-2">
+        <div class="d-flex justify-content-between align-items-center mb-1">
+          <span class="fw-bold text-success" style="font-size: 11px;">
+            <i class="mdi mdi-source-branch me-1"></i>Dropped Cores (${droppedList.length})
+          </span>
+        </div>
+        <div class="d-flex flex-wrap gap-1">
+    `;
+
+    if (droppedList.length) {
+      droppedList.forEach(c => {
+        html += `<span class="badge bg-success text-white" style="font-size: 11px;">Core ${c}</span>`;
+      });
+    } else {
+      html += `<span class="text-muted fst-italic small">None</span>`;
+    }
+
+    html += `
+        </div>
+      </div>
+      <div>
+        <div class="d-flex justify-content-between align-items-center mb-1">
+          <span class="fw-bold text-primary" style="font-size: 11px;">
+            <i class="mdi mdi-ray-start-end me-1"></i>Passed-Through Cores (${passedList.length})
+          </span>
+        </div>
+        <div class="d-flex flex-wrap gap-1" style="max-height: 150px; overflow-y: auto;">
+    `;
+
+    if (passedList.length) {
+      passedList.forEach(c => {
+        html += `<span class="badge bg-primary-subtle text-primary border" style="font-size: 11px;">Core ${c}</span>`;
+      });
+    } else {
+      html += `<span class="text-muted fst-italic small">None</span>`;
+    }
+
+    html += `
+        </div>
+      </div>
+    `;
+
+    bodyEl.innerHTML = html;
+    tooltip.style.display = 'block';
+    moveTooltip(e);
+  }
+
+  function moveTooltip(e) {
+    const rect = container.getBoundingClientRect();
+    const tooltipWidth = tooltip.offsetWidth || 280;
+    const tooltipHeight = tooltip.offsetHeight || 160;
+
+    let x = e.clientX - rect.left + container.scrollLeft + 15;
+    let y = e.clientY - rect.top - tooltipHeight - 10;
+
+    if (y < 10) {
+      y = e.clientY - rect.top + 20;
+    }
+
+    if (e.clientX - rect.left + tooltipWidth + 30 > container.clientWidth) {
+      x = e.clientX - rect.left + container.scrollLeft - tooltipWidth - 15;
+    }
+
+    tooltip.style.left = `${Math.max(10, x)}px`;
+    tooltip.style.top = `${Math.max(10, y)}px`;
+  }
+
+  function hideTooltip() {
+    tooltip.style.display = 'none';
+  }
+
+  container.querySelectorAll('.schematic-dp-group').forEach(group => {
+    const dpId = group.getAttribute('data-dp-id');
+    const dp = dropNodes.find(n => n.id === dpId);
+    if (!dp) return;
+
+    group.addEventListener('mouseenter', function(e) {
+      showTooltip(e, dp);
+    });
+
+    group.addEventListener('mousemove', function(e) {
+      moveTooltip(e);
+    });
+
+    group.addEventListener('mouseleave', function() {
+      hideTooltip();
+    });
+  });
 }
 
 // Multi-phase initialization to ensure execution in NetBox / HTMX / direct load:

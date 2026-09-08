@@ -106,6 +106,7 @@ class FiberRouteView(generic.ObjectView):
                 'km': float(dp.distance_km) if dp.distance_km else None,
                 'url': dp.site.get_absolute_url() if dp.site else dp.get_absolute_url(),
                 'dropped_cores': dp.parsed_dropped_cores,
+                'passed_cores': dp.parsed_passed_cores,
             })
         schematic_nodes.append({
             'id': 'end',

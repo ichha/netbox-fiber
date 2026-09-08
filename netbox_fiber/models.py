@@ -344,6 +344,7 @@ class FiberDropPoint(NetBoxModel):
     )
     dropped_cores = models.CharField(
         max_length=255,
+        blank=True,
         help_text="Cores dropped / spliced at this point (e.g. '3, 4' or '3-4')"
     )
     passed_cores = models.CharField(

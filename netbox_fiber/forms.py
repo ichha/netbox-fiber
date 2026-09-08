@@ -70,6 +70,12 @@ class FiberDropPointForm(NetBoxModelForm):
         label='Point Type',
         help_text='Designate whether this is a Starting Point, Intermediate Drop, or End Point'
     )
+    dropped_cores = forms.CharField(
+        max_length=255,
+        required=False,
+        label='Dropped Cores',
+        help_text="Cores dropped / spliced at this point (e.g. '3, 4' or '3-4')"
+    )
 
     class Meta:
         model = FiberDropPoint
@@ -88,7 +94,11 @@ class FiberDropPointForm(NetBoxModelForm):
         )
 
     def clean(self):
-        cleaned_data = super().clean()
+        super().clean()
+        cleaned_data = getattr(self, 'cleaned_data', None)
+        if not cleaned_data:
+            return self.cleaned_data
+
         fiber_route = cleaned_data.get('fiber_route')
         dropped_cores_str = cleaned_data.get('dropped_cores')
 
@@ -120,7 +130,25 @@ class FiberDropPointForm(NetBoxModelForm):
                     )
                     break
 
-        return cleaned_data
+        # Validate passed cores
+        passed_cores_str = cleaned_data.get('passed_cores')
+        point_type = cleaned_data.get('point_type')
+
+        if point_type == 'end':
+            # End points do not have outgoing passed cores
+            cleaned_data['passed_cores'] = ''
+        elif fiber_route and dropped_cores_str and passed_cores_str and point_type != 'start':
+            selected_drops = set(parse_core_string(dropped_cores_str))
+            selected_passes = set(parse_core_string(passed_cores_str))
+            overlap = selected_drops.intersection(selected_passes)
+            if overlap:
+                overlap_str = ", ".join(f"Core {c}" for c in sorted(list(overlap)))
+                self.add_error(
+                    'passed_cores',
+                    f"{overlap_str} cannot be both Dropped and Passed through at this point."
+                )
+
+        return self.cleaned_data
 
 
 # --- Filter Forms ---

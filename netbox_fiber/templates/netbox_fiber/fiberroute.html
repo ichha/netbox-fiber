@@ -547,14 +547,17 @@ function renderFiberSchematic() {
         svgContent += `
           <g>
             <rect x="${dpX}" y="${dropY}" width="${dropBoxW}" height="${dropBoxH}" rx="8" fill="${boxBg}" stroke="#ffc107" stroke-width="2.5"/>
-            <rect x="${dpX}" y="${dropY}" width="${dropBoxW}" height="24" rx="8" fill="#ffc107" fill-opacity="0.18"/>
-            <text x="${dpCenterX}" y="${dropY + 16}" text-anchor="middle" font-size="11" font-weight="bold" fill="#b45309">
-              DROPPED CORES
+            <rect x="${dpX}" y="${dropY}" width="${dropBoxW}" height="22" rx="8" fill="#ffc107" fill-opacity="0.18"/>
+            <text x="${dpCenterX}" y="${dropY + 15}" text-anchor="middle" font-size="10" font-weight="bold" fill="#b45309">
+              DROP POINT ENCLOSURE
             </text>
-            <text x="${dpCenterX}" y="${dropY + 44}" text-anchor="middle" font-size="13" font-weight="bold" fill="#198754">
-              ${dp.dropped_cores && dp.dropped_cores.length ? dp.dropped_cores.map(c => `Core ${c}`).join(', ') : 'None'}
+            <text x="${dpCenterX}" y="${dropY + 38}" text-anchor="middle" font-size="11" font-weight="bold" fill="#198754">
+              Dropped: ${dp.dropped_cores && dp.dropped_cores.length ? dp.dropped_cores.map(c => `Core ${c}`).join(', ') : 'None'}
             </text>
-            <text x="${dpCenterX}" y="${dropY + 68}" text-anchor="middle" font-size="10" fill="${mutedText}">
+            <text x="${dpCenterX}" y="${dropY + 56}" text-anchor="middle" font-size="11" font-weight="bold" fill="#0d6efd">
+              Passed: ${dp.passed_cores && dp.passed_cores.length ? dp.passed_cores.map(c => `Core ${c}`).join(', ') : 'None'}
+            </text>
+            <text x="${dpCenterX}" y="${dropY + 75}" text-anchor="middle" font-size="10" fill="${mutedText}">
               ${escapeXml(dp.point_type || 'Site / Joint')}
             </text>
           </g>

@@ -10,19 +10,19 @@
     border-radius: 8px;
     padding: 16px;
     margin-top: 10px;
-    margin-bottom: 15px;
+    margin-bottom: 18px;
   }
   .core-btn-grid {
     display: flex;
     flex-wrap: wrap;
     gap: 8px;
-    margin-top: 10px;
+    margin-top: 8px;
   }
   .core-pill-btn {
     display: inline-flex;
     align-items: center;
     gap: 6px;
-    padding: 6px 14px;
+    padding: 6px 13px;
     border-radius: 20px;
     border: 1.5px solid var(--bs-border-color, #cbd5e1);
     background: var(--bs-body-bg, #ffffff);
@@ -37,11 +37,17 @@
     border-color: #0d6efd;
     background: rgba(13, 110, 253, 0.08);
   }
-  .core-pill-btn.active {
+  .core-pill-btn.active-drop {
     background: #198754 !important;
     border-color: #198754 !important;
     color: #ffffff !important;
     box-shadow: 0 2px 4px rgba(25, 135, 84, 0.25);
+  }
+  .core-pill-btn.active-pass {
+    background: #0d6efd !important;
+    border-color: #0d6efd !important;
+    color: #ffffff !important;
+    box-shadow: 0 2px 4px rgba(13, 110, 253, 0.25);
   }
   .core-pill-btn.disabled, .core-pill-btn:disabled {
     background: var(--bs-secondary-bg, #e2e8f0) !important;
@@ -49,10 +55,6 @@
     color: var(--bs-secondary-color, #94a3b8) !important;
     cursor: not-allowed;
     opacity: 0.65;
-    text-decoration: line-through;
-  }
-  .core-pill-btn.current-saved {
-    border-color: #198754;
   }
   .core-badge-tag {
     font-size: 10px;
@@ -64,14 +66,15 @@
 
 <script>
 document.addEventListener('DOMContentLoaded', function() {
-  initCoreSelector();
+  initCoreSelectors();
 });
 document.addEventListener('htmx:load', function() {
-  initCoreSelector();
+  initCoreSelectors();
 });
 
-function initCoreSelector() {
+function initCoreSelectors() {
   const droppedInput = document.getElementById('id_dropped_cores');
+  const passedInput = document.getElementById('id_passed_cores');
   const routeSelect = document.getElementById('id_fiber_route');
   const pointTypeSelect = document.getElementById('id_point_type');
   if (!droppedInput || !routeSelect) return;
@@ -79,38 +82,80 @@ function initCoreSelector() {
   // Prevent duplicate initialization
   if (document.getElementById('core-selector-widget')) return;
 
-  // Create UI Container for Core Selector
+  // Create UI Container for Dual Core Selector
   const widgetBox = document.createElement('div');
   widgetBox.id = 'core-selector-widget';
-  widgetBox.className = 'core-selector-container';
+  widgetBox.className = 'core-selector-container shadow-sm';
 
   widgetBox.innerHTML = `
-    <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-2 pb-2 border-bottom">
+    <!-- Top Header -->
+    <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3 pb-2 border-bottom">
       <div>
         <h6 class="mb-0 fw-bold text-primary">
-          <i class="mdi mdi-checkbox-multiple-marked-outline me-1"></i>Interactive Fiber Core Selector
+          <i class="mdi mdi-vector-polyline me-1"></i>Interactive Fiber Core Allocation & Pass-through Manager
         </h6>
         <small class="text-muted" id="core-selector-hint">
-          Select cores dropped/spliced at this point. Cores allocated at other drop points will be disabled.
+          Designate which cores are dropped/terminated here and which cores continue through the closure.
         </small>
       </div>
       <div class="btn-group btn-group-sm" role="group">
-        <button type="button" class="btn btn-outline-primary" id="btn-select-all-cores">
-          <i class="mdi mdi-check-all me-1"></i>Select All Available
+        <button type="button" class="btn btn-outline-success" id="btn-smart-allocate" title="Automatically calculate passed cores based on dropped cores">
+          <i class="mdi mdi-auto-fix me-1"></i>Auto Calculate Pass
         </button>
-        <button type="button" class="btn btn-outline-secondary" id="btn-clear-cores">
-          <i class="mdi mdi-close me-1"></i>Clear
+        <button type="button" class="btn btn-outline-secondary" id="btn-clear-all" title="Clear both dropped and passed selections">
+          <i class="mdi mdi-close me-1"></i>Reset
         </button>
       </div>
     </div>
-    <div id="core-pill-list" class="core-btn-grid">
-      <div class="text-muted small py-2">
-        <i class="mdi mdi-loading mdi-spin me-1"></i>Please select a Fiber Route above to load cores...
+
+    <!-- Section 1: Dropped Cores -->
+    <div class="mb-3 p-2 bg-body rounded border">
+      <div class="d-flex justify-content-between align-items-center mb-1">
+        <div class="d-flex align-items-center gap-2">
+          <span class="badge bg-success text-white px-2 py-1"><i class="mdi mdi-source-branch me-1"></i>Dropped / Spliced Cores</span>
+          <span class="small text-muted">Cores terminated into this location</span>
+        </div>
+        <div class="btn-group btn-group-sm">
+          <button type="button" class="btn btn-sm btn-link p-0 text-success text-decoration-none fw-semibold me-2" id="btn-select-all-drops">
+            Select All Available
+          </button>
+          <button type="button" class="btn btn-sm btn-link p-0 text-secondary text-decoration-none" id="btn-clear-drops">
+            Clear
+          </button>
+        </div>
+      </div>
+      <div id="drop-core-list" class="core-btn-grid">
+        <div class="text-muted small py-2"><i class="mdi mdi-loading mdi-spin me-1"></i>Select a Fiber Route above...</div>
+      </div>
+      <div class="mt-2 small d-flex justify-content-between text-muted">
+        <span id="drop-summary" class="fw-semibold text-success">Dropped: None</span>
+        <span>Allocated in other points are locked</span>
       </div>
     </div>
-    <div class="d-flex justify-content-between align-items-center mt-2 pt-2 border-top small">
-      <span id="core-selection-summary" class="fw-semibold text-secondary">Selected: None</span>
-      <span class="text-muted">Direct input below stays synchronized</span>
+
+    <!-- Section 2: Passed Cores -->
+    <div class="p-2 bg-body rounded border">
+      <div class="d-flex justify-content-between align-items-center mb-1">
+        <div class="d-flex align-items-center gap-2">
+          <span class="badge bg-primary text-white px-2 py-1"><i class="mdi mdi-ray-start-end me-1"></i>Passed-through Cores</span>
+          <span class="small text-muted">Cores continuing in cable through closure without termination</span>
+        </div>
+        <div class="btn-group btn-group-sm">
+          <button type="button" class="btn btn-sm btn-link p-0 text-primary text-decoration-none fw-semibold me-2" id="btn-select-all-passed">
+            Pass All Remaining
+          </button>
+          <button type="button" class="btn btn-sm btn-link p-0 text-secondary text-decoration-none" id="btn-clear-passed">
+            Clear
+          </button>
+        </div>
+      </div>
+      <div id="pass-core-list" class="core-btn-grid">
+        <div class="text-muted small py-2"><i class="mdi mdi-loading mdi-spin me-1"></i>Select a Fiber Route above...</div>
+      </div>
+      <div class="mt-2 small d-flex justify-content-between text-muted">
+        <span id="pass-summary" class="fw-semibold text-primary">Passed: None</span>
+        <span>End Points terminate cable (no passed cores)</span>
+      </div>
     </div>
   `;
 
@@ -125,81 +170,261 @@ function initCoreSelector() {
   // Determine current Drop Point ID (if editing existing)
   const pathParts = window.location.pathname.split('/').filter(Boolean);
   let currentDpId = null;
-  // If editing e.g. /plugins/fiber/drop-points/12/edit/
   const editIdx = pathParts.indexOf('edit');
   if (editIdx > 0 && !isNaN(pathParts[editIdx - 1])) {
     currentDpId = pathParts[editIdx - 1];
   }
 
-  // Track active selection
-  let selectedCores = new Set();
-  let availableCores = [];
-  let allocatedMap = {};
+  // State
+  let totalRouteCores = 0;
+  let selectedDropCores = new Set();
+  let selectedPassCores = new Set();
+  let allocatedElsewhere = {}; // { coreNum: { point_name, point_type } }
 
-  // Parse existing cores from input
-  function readInputCores() {
-    selectedCores.clear();
-    const val = droppedInput.value || '';
-    const parts = val.replace(/;/g, ',').split(',');
+  // Helper to parse comma/range strings into Set
+  function parseCoreString(str) {
+    const s = new Set();
+    if (!str) return s;
+    const parts = String(str).replace(/;/g, ',').split(',');
     parts.forEach(p => {
       p = p.trim();
       if (!p) return;
       if (p.includes('-')) {
-        const sub = p.split('-').map(s => parseInt(s.trim(), 10));
+        const sub = p.split('-').map(x => parseInt(x.trim(), 10));
         if (sub.length === 2 && !isNaN(sub[0]) && !isNaN(sub[1])) {
           const start = Math.min(sub[0], sub[1]);
           const end = Math.max(sub[0], sub[1]);
-          for (let i = start; i <= end; i++) selectedCores.add(i);
+          for (let i = start; i <= end; i++) s.add(i);
         }
       } else {
         const num = parseInt(p, 10);
-        if (!isNaN(num)) selectedCores.add(num);
+        if (!isNaN(num)) s.add(num);
       }
     });
+    return s;
   }
 
-  // Update input and summary from selectedCores
-  function syncToInput() {
-    const sorted = Array.from(selectedCores).sort((a, b) => a - b);
-    droppedInput.value = sorted.join(', ');
+  function readInputs() {
+    selectedDropCores = parseCoreString(droppedInput.value);
+    if (passedInput) {
+      selectedPassCores = parseCoreString(passedInput.value);
+    }
+  }
 
-    const summaryEl = document.getElementById('core-selection-summary');
-    if (summaryEl) {
-      if (sorted.length === 0) {
-        summaryEl.textContent = 'Selected: None';
-        summaryEl.className = 'fw-semibold text-secondary';
-      } else {
-        summaryEl.textContent = `Selected: ${sorted.length} core(s) (${sorted.map(c => 'Core ' + c).join(', ')})`;
-        summaryEl.className = 'fw-semibold text-success';
+  function syncInputs() {
+    // Dropped cores input
+    const sortedDrops = Array.from(selectedDropCores).sort((a, b) => a - b);
+    droppedInput.value = sortedDrops.join(', ');
+    const dropSummary = document.getElementById('drop-summary');
+    if (dropSummary) {
+      dropSummary.textContent = sortedDrops.length ? `Dropped: ${sortedDrops.length} core(s) (${sortedDrops.map(c => 'Core ' + c).join(', ')})` : 'Dropped: None';
+    }
+
+    // Passed cores input
+    if (passedInput) {
+      const sortedPass = Array.from(selectedPassCores).sort((a, b) => a - b);
+      passedInput.value = sortedPass.join(', ');
+      const passSummary = document.getElementById('pass-summary');
+      if (passSummary) {
+        passSummary.textContent = sortedPass.length ? `Passed: ${sortedPass.length} core(s) (${sortedPass.map(c => 'Core ' + c).join(', ')})` : 'Passed: None';
       }
     }
 
-    // Update active class on buttons
-    document.querySelectorAll('.core-pill-btn').forEach(btn => {
-      const coreNum = parseInt(btn.dataset.core, 10);
-      if (selectedCores.has(coreNum)) {
-        btn.classList.add('active');
-        const icon = btn.querySelector('.core-check-icon');
-        if (icon) icon.className = 'mdi mdi-check-circle core-check-icon';
+    renderButtonStates();
+  }
+
+  function renderButtonStates() {
+    // Render Drop buttons state
+    document.querySelectorAll('.btn-drop-core').forEach(btn => {
+      const c = parseInt(btn.dataset.core, 10);
+      if (selectedDropCores.has(c)) {
+        btn.classList.add('active-drop');
+        const icon = btn.querySelector('.drop-check-icon');
+        if (icon) icon.className = 'mdi mdi-check-circle drop-check-icon';
       } else {
-        btn.classList.remove('active');
-        const icon = btn.querySelector('.core-check-icon');
-        if (icon) icon.className = 'mdi mdi-circle-outline core-check-icon';
+        btn.classList.remove('active-drop');
+        const icon = btn.querySelector('.drop-check-icon');
+        if (icon) icon.className = 'mdi mdi-circle-outline drop-check-icon';
+      }
+    });
+
+    // Render Pass buttons state
+    const pointType = pointTypeSelect ? pointTypeSelect.value : 'drop';
+    document.querySelectorAll('.btn-pass-core').forEach(btn => {
+      const c = parseInt(btn.dataset.core, 10);
+      const isDroppedHere = selectedDropCores.has(c);
+      const isAllocatedElsewhere = !!allocatedElsewhere[c];
+
+      if (pointType === 'end' || isDroppedHere || isAllocatedElsewhere) {
+        btn.disabled = true;
+        btn.classList.add('disabled');
+        btn.classList.remove('active-pass');
+        const icon = btn.querySelector('.pass-check-icon');
+        if (icon) {
+          icon.className = isDroppedHere ? 'mdi mdi-arrow-down-bold text-success pass-check-icon' : 'mdi mdi-lock text-muted pass-check-icon';
+        }
+        selectedPassCores.delete(c);
+      } else {
+        btn.disabled = false;
+        btn.classList.remove('disabled');
+        if (selectedPassCores.has(c)) {
+          btn.classList.add('active-pass');
+          const icon = btn.querySelector('.pass-check-icon');
+          if (icon) icon.className = 'mdi mdi-check-circle pass-check-icon';
+        } else {
+          btn.classList.remove('active-pass');
+          const icon = btn.querySelector('.pass-check-icon');
+          if (icon) icon.className = 'mdi mdi-circle-outline pass-check-icon';
+        }
       }
     });
   }
 
-  // Fetch route cores from API
-  function loadRouteCores(routeId) {
-    const listEl = document.getElementById('core-pill-list');
-    if (!listEl) return;
+  // Smart Auto-Calculation Logic
+  function autoCalculatePassedCores() {
+    const pointType = pointTypeSelect ? pointTypeSelect.value : 'drop';
+
+    if (pointType === 'start') {
+      // For Starting Point: all cores originate and pass into the cable
+      selectedDropCores.clear();
+      selectedPassCores.clear();
+      for (let c = 1; c <= totalRouteCores; c++) {
+        selectedDropCores.add(c);
+        selectedPassCores.add(c);
+      }
+    } else if (pointType === 'end') {
+      // For End Point: all remaining available cores terminate here; NO cores pass through
+      selectedPassCores.clear();
+      for (let c = 1; c <= totalRouteCores; c++) {
+        if (!allocatedElsewhere[c]) {
+          selectedDropCores.add(c);
+        }
+      }
+    } else {
+      // For Intermediate Drop Point:
+      // Passed Cores = (All cores not dropped upstream) MINUS (Cores dropped at this point)
+      selectedPassCores.clear();
+      for (let c = 1; c <= totalRouteCores; c++) {
+        if (!allocatedElsewhere[c] && !selectedDropCores.has(c)) {
+          selectedPassCores.add(c);
+        }
+      }
+    }
+
+    syncInputs();
+  }
+
+  // Build the Core Buttons for both Dropped and Passed
+  function buildCoreGrids() {
+    const dropList = document.getElementById('drop-core-list');
+    const passList = document.getElementById('pass-core-list');
+    if (!dropList || !passList) return;
+
+    dropList.innerHTML = '';
+    passList.innerHTML = '';
+
+    const pointType = pointTypeSelect ? pointTypeSelect.value : 'drop';
+
+    for (let c = 1; c <= totalRouteCores; c++) {
+      const isAllocatedElsewhere = !!allocatedElsewhere[c];
+      const allocInfo = allocatedElsewhere[c];
+
+      // --- 1. Drop Button ---
+      const dropBtn = document.createElement('button');
+      dropBtn.type = 'button';
+      dropBtn.dataset.core = c;
+      dropBtn.className = 'core-pill-btn btn-drop-core';
+
+      if (isAllocatedElsewhere) {
+        dropBtn.className += ' disabled';
+        dropBtn.disabled = true;
+        dropBtn.title = `Core ${c} is already allocated at ${allocInfo.point_name} (${allocInfo.point_type})`;
+        dropBtn.innerHTML = `
+          <i class="mdi mdi-lock text-danger"></i>
+          <span>Core ${c}</span>
+          <span class="core-badge-tag text-muted">${allocInfo.point_name}</span>
+        `;
+      } else {
+        dropBtn.title = `Click to toggle dropping Core ${c}`;
+        dropBtn.innerHTML = `
+          <i class="mdi mdi-circle-outline drop-check-icon"></i>
+          <span>Core ${c}</span>
+        `;
+        dropBtn.addEventListener('click', function(e) {
+          e.preventDefault();
+          if (selectedDropCores.has(c)) {
+            selectedDropCores.delete(c);
+          } else {
+            selectedDropCores.add(c);
+            selectedPassCores.delete(c); // cannot pass if dropped here
+          }
+          // Auto update remaining into passed cores for intermediate points
+          if (pointType === 'drop' || pointType === 'site' || pointType === 'joint_box') {
+            autoCalculatePassedCores();
+          } else {
+            syncInputs();
+          }
+        });
+      }
+      dropList.appendChild(dropBtn);
+
+      // --- 2. Pass Button ---
+      const passBtn = document.createElement('button');
+      passBtn.type = 'button';
+      passBtn.dataset.core = c;
+      passBtn.className = 'core-pill-btn btn-pass-core';
+
+      if (pointType === 'end') {
+        passBtn.className += ' disabled';
+        passBtn.disabled = true;
+        passBtn.title = 'End Point: No cores pass beyond route termination';
+        passBtn.innerHTML = `<i class="mdi mdi-cancel text-muted"></i><span>Core ${c}</span>`;
+      } else if (isAllocatedElsewhere) {
+        passBtn.className += ' disabled';
+        passBtn.disabled = true;
+        passBtn.title = `Core ${c} terminated upstream at ${allocInfo.point_name}`;
+        passBtn.innerHTML = `
+          <i class="mdi mdi-lock text-muted"></i>
+          <span>Core ${c}</span>
+          <span class="core-badge-tag text-muted">Dropped upstream</span>
+        `;
+      } else {
+        passBtn.title = `Click to toggle passing Core ${c} through this point`;
+        passBtn.innerHTML = `
+          <i class="mdi mdi-circle-outline pass-check-icon"></i>
+          <span>Core ${c}</span>
+        `;
+        passBtn.addEventListener('click', function(e) {
+          e.preventDefault();
+          if (selectedPassCores.has(c)) {
+            selectedPassCores.delete(c);
+          } else {
+            selectedPassCores.add(c);
+            selectedDropCores.delete(c); // cannot drop if passing
+          }
+          syncInputs();
+        });
+      }
+      passList.appendChild(passBtn);
+    }
+
+    syncInputs();
+  }
+
+  // Load Route data from API
+  function loadRouteData(routeId) {
+    const dropList = document.getElementById('drop-core-list');
+    const passList = document.getElementById('pass-core-list');
+    if (!dropList || !passList) return;
 
     if (!routeId) {
-      listEl.innerHTML = '<div class="text-muted small py-2"><i class="mdi mdi-arrow-up me-1"></i>Select a Fiber Route above to load and select cores.</div>';
+      dropList.innerHTML = '<div class="text-muted small py-2"><i class="mdi mdi-arrow-up me-1"></i>Select a Fiber Route above...</div>';
+      passList.innerHTML = '<div class="text-muted small py-2"><i class="mdi mdi-arrow-up me-1"></i>Select a Fiber Route above...</div>';
       return;
     }
 
-    listEl.innerHTML = '<div class="text-muted small py-2"><i class="mdi mdi-loading mdi-spin me-1"></i>Loading available cores for route...</div>';
+    dropList.innerHTML = '<div class="text-muted small py-2"><i class="mdi mdi-loading mdi-spin me-1"></i>Loading available cores...</div>';
+    passList.innerHTML = '<div class="text-muted small py-2"><i class="mdi mdi-loading mdi-spin me-1"></i>Loading available cores...</div>';
 
     let url = `/plugins/fiber/api/route-cores/?route_id=${encodeURIComponent(routeId)}`;
     if (currentDpId) {
@@ -213,113 +438,120 @@ function initCoreSelector() {
       })
       .then(data => {
         if (!data || !data.total_cores) {
-          listEl.innerHTML = '<div class="alert alert-warning p-2 small mb-0">No cores found for selected route.</div>';
+          dropList.innerHTML = '<div class="alert alert-warning p-2 small mb-0">No cores configured for this route.</div>';
+          passList.innerHTML = '';
           return;
         }
 
-        readInputCores();
-        allocatedMap = data.allocated_cores || {};
-        availableCores = [];
-        listEl.innerHTML = '';
+        totalRouteCores = data.total_cores;
+        allocatedElsewhere = data.allocated_cores || {};
+        readInputs();
 
-        for (let c = 1; c <= data.total_cores; c++) {
-          const isAllocatedElsewhere = !!allocatedMap[c];
-          const allocInfo = allocatedMap[c];
-          const isCurrentSelected = selectedCores.has(c);
-
-          const btn = document.createElement('button');
-          btn.type = 'button';
-          btn.dataset.core = c;
-
-          if (isAllocatedElsewhere) {
-            btn.className = 'core-pill-btn disabled';
-            btn.disabled = true;
-            btn.title = `Core ${c} is already allocated at ${allocInfo.point_name} (${allocInfo.point_type})`;
-            btn.innerHTML = `
-              <i class="mdi mdi-lock text-danger"></i>
-              <span>Core ${c}</span>
-              <span class="core-badge-tag text-muted">${allocInfo.point_name}</span>
-            `;
-          } else {
-            availableCores.push(c);
-            btn.className = `core-pill-btn ${isCurrentSelected ? 'active' : ''}`;
-            btn.title = `Click to toggle Core ${c}`;
-            btn.innerHTML = `
-              <i class="mdi ${isCurrentSelected ? 'mdi-check-circle' : 'mdi-circle-outline'} core-check-icon"></i>
-              <span>Core ${c}</span>
-            `;
-
-            btn.addEventListener('click', function(e) {
-              e.preventDefault();
-              if (selectedCores.has(c)) {
-                selectedCores.delete(c);
-              } else {
-                selectedCores.add(c);
-              }
-              syncToInput();
-            });
-          }
-
-          listEl.appendChild(btn);
+        // If newly creating a drop point (inputs are empty), suggest smart defaults
+        const isNewPoint = !droppedInput.value && (!passedInput || !passedInput.value);
+        if (isNewPoint) {
+          autoCalculatePassedCores();
         }
 
-        syncToInput();
+        buildCoreGrids();
       })
       .catch(err => {
         console.error("Error loading route cores:", err);
-        listEl.innerHTML = `<div class="alert alert-warning p-2 small mb-0">Failed to load cores: ${err.message}</div>`;
+        dropList.innerHTML = `<div class="alert alert-warning p-2 small mb-0">Failed to load cores: ${err.message}</div>`;
+        passList.innerHTML = '';
       });
   }
 
-  // Quick Action Buttons
-  document.getElementById('btn-select-all-cores').addEventListener('click', function(e) {
+  // Quick Action Button Handlers
+  document.getElementById('btn-smart-allocate').addEventListener('click', function(e) {
     e.preventDefault();
-    availableCores.forEach(c => selectedCores.add(c));
-    syncToInput();
+    autoCalculatePassedCores();
   });
 
-  document.getElementById('btn-clear-cores').addEventListener('click', function(e) {
+  document.getElementById('btn-clear-all').addEventListener('click', function(e) {
     e.preventDefault();
-    selectedCores.clear();
-    syncToInput();
+    selectedDropCores.clear();
+    selectedPassCores.clear();
+    syncInputs();
   });
 
-  // Listen to manual changes on droppedInput
-  droppedInput.addEventListener('input', function() {
-    readInputCores();
-    syncToInput();
-  });
-
-  // Listen to route selection changes
-  routeSelect.addEventListener('change', function() {
-    loadRouteCores(this.value);
-  });
-
-  // Listen to point_type selection changes
-  if (pointTypeSelect) {
-    pointTypeSelect.addEventListener('change', function() {
-      const hint = document.getElementById('core-selector-hint');
-      if (!hint) return;
-      if (this.value === 'start') {
-        hint.textContent = 'Starting Point: Select cores originating or terminated at the starting terminal (e.g. all route cores).';
-      } else if (this.value === 'end') {
-        hint.textContent = 'End Point: Select cores terminating at the destination terminal.';
-      } else {
-        hint.textContent = 'Intermediate Drop: Select cores spliced or dropped into this local splice closure / site.';
+  document.getElementById('btn-select-all-drops').addEventListener('click', function(e) {
+    e.preventDefault();
+    for (let c = 1; c <= totalRouteCores; c++) {
+      if (!allocatedElsewhere[c]) {
+        selectedDropCores.add(c);
+        selectedPassCores.delete(c);
       }
+    }
+    syncInputs();
+  });
+
+  document.getElementById('btn-clear-drops').addEventListener('click', function(e) {
+    e.preventDefault();
+    selectedDropCores.clear();
+    syncInputs();
+  });
+
+  document.getElementById('btn-select-all-passed').addEventListener('click', function(e) {
+    e.preventDefault();
+    const pointType = pointTypeSelect ? pointTypeSelect.value : 'drop';
+    if (pointType === 'end') return;
+    for (let c = 1; c <= totalRouteCores; c++) {
+      if (!allocatedElsewhere[c] && !selectedDropCores.has(c)) {
+        selectedPassCores.add(c);
+      }
+    }
+    syncInputs();
+  });
+
+  document.getElementById('btn-clear-passed').addEventListener('click', function(e) {
+    e.preventDefault();
+    selectedPassCores.clear();
+    syncInputs();
+  });
+
+  // Direct input listeners
+  droppedInput.addEventListener('input', function() {
+    selectedDropCores = parseCoreString(this.value);
+    syncInputs();
+  });
+  if (passedInput) {
+    passedInput.addEventListener('input', function() {
+      selectedPassCores = parseCoreString(this.value);
+      syncInputs();
     });
   }
 
-  // Initial load if route already selected
+  // Route select listener
+  routeSelect.addEventListener('change', function() {
+    loadRouteData(this.value);
+  });
+
+  // Point type listener
+  if (pointTypeSelect) {
+    pointTypeSelect.addEventListener('change', function() {
+      const hint = document.getElementById('core-selector-hint');
+      if (this.value === 'start') {
+        if (hint) hint.textContent = 'Starting Point: All route cores typically originate here and pass into the cable.';
+      } else if (this.value === 'end') {
+        if (hint) hint.textContent = 'End Point: Remaining cores terminate here. No cores pass through beyond the route end.';
+      } else {
+        if (hint) hint.textContent = 'Intermediate Drop: Selected cores are dropped locally; remaining available cores pass through the closure.';
+      }
+      autoCalculatePassedCores();
+      buildCoreGrids();
+    });
+  }
+
+  // Initial load
   if (routeSelect.value) {
-    loadRouteCores(routeSelect.value);
+    loadRouteData(routeSelect.value);
   } else {
-    // Check URL parameters for preselected fiber_route
     const urlParams = new URLSearchParams(window.location.search);
     const preRoute = urlParams.get('fiber_route');
     if (preRoute) {
       routeSelect.value = preRoute;
-      loadRouteCores(preRoute);
+      loadRouteData(preRoute);
     }
   }
 }

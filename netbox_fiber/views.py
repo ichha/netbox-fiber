@@ -39,11 +39,13 @@ class FiberVendorView(generic.ObjectView):
         routes = instance.fiber_routes.all()
         total_km = routes.aggregate(total=Sum('total_length_km'))['total'] or Decimal('0.000')
         total_cores = routes.aggregate(total=Sum('total_cores'))['total'] or 0
+        route_table = FiberRouteTable(routes)
+        route_table.configure(request)
         return {
             'routes': routes,
             'total_km': total_km,
             'total_cores': total_cores,
-            'route_table': FiberRouteTable(routes),
+            'route_table': route_table,
         }
 
 

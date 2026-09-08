@@ -426,7 +426,7 @@ class FiberRouteCoreAvailabilityAPI(View):
                         'point_type_display': dp.get_point_type_display(),
                     })
 
-        # Calculate "both ends dropped" status for each core
+        # Calculate "circuit complete / both ends dropped" status for each core
         cores_info = []
         for c in range(1, total_cores + 1):
             history = core_drop_history[c]
@@ -435,20 +435,24 @@ class FiberRouteCoreAvailabilityAPI(View):
             has_start = any(h['point_type'] == 'start' for h in history)
             downstream_drops = [h for h in history if h['point_type'] in ['drop', 'end']]
 
-            # A core is locked if both ends are dropped (i.e. has downstream drop, or dropped >= 2 times)
+            # A core is locked if its circuit is complete (terminated downstream or dropped >= 2 times)
             is_locked = (len(downstream_drops) >= 1) or (drop_count >= 2)
 
             lock_reason = ""
+            terminated_at = None
             if downstream_drops:
-                lock_reason = f"Both ends dropped (Terminated at {downstream_drops[0]['point_name']})"
+                terminated_at = downstream_drops[0]['point_name']
+                lock_reason = f"Circuit complete (Terminated at {terminated_at})"
             elif drop_count >= 2:
-                lock_reason = f"Both ends dropped ({', '.join(h['point_name'] for h in history)})"
+                terminated_at = history[-1]['point_name']
+                lock_reason = f"Circuit complete (Terminated at {terminated_at})"
 
             cores_info.append({
                 'core': c,
                 'drop_count': drop_count,
                 'is_locked': is_locked,
                 'lock_reason': lock_reason,
+                'terminated_at': terminated_at,
                 'history': history,
                 'has_start': has_start,
             })

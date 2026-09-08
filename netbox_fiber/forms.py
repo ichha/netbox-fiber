@@ -99,7 +99,10 @@ class FiberDropPointForm(NetBoxModelForm):
         if not cleaned_data:
             return self.cleaned_data
 
+        fiber_route = cleaned_data.get('fiber_route')
         point_type = cleaned_data.get('point_type')
+        dropped_cores_str = cleaned_data.get('dropped_cores')
+        passed_cores_str = cleaned_data.get('passed_cores')
 
         # Check uniqueness of Starting and End points on the route
         if fiber_route and point_type in ['start', 'end']:
@@ -116,20 +119,20 @@ class FiberDropPointForm(NetBoxModelForm):
                     f"Route '{fiber_route.name}' already has a {role_label} ('{existing_same_type.first().site_display}'). Each route can only have one {role_label}."
                 )
 
+        selected_drops = []
         if fiber_route and dropped_cores_str:
-            selected_cores = parse_core_string(dropped_cores_str)
+            selected_drops = parse_core_string(dropped_cores_str)
             total_cores = fiber_route.total_cores
 
             # Check valid core bounds
-            invalid_cores = [c for c in selected_cores if c < 1 or c > total_cores]
+            invalid_cores = [c for c in selected_drops if c < 1 or c > total_cores]
             if invalid_cores:
                 self.add_error(
                     'dropped_cores',
                     f"Selected core(s) {invalid_cores} are out of bounds. Route '{fiber_route.name}' only has {total_cores} cores."
                 )
 
-            # Check conflicts only against other consuming drop points (Intermediate Drop and End Point)
-            # Starting Point originates cores and does not conflict with downstream drops
+            # Check conflicts against other consuming drop points (Intermediate Drop and End Point)
             if point_type in ['drop', 'end']:
                 other_consuming = FiberDropPoint.objects.filter(
                     fiber_route=fiber_route,
@@ -140,31 +143,58 @@ class FiberDropPointForm(NetBoxModelForm):
 
                 for other in other_consuming:
                     other_cores = set(other.parsed_dropped_cores)
-                    conflicts = [c for c in selected_cores if c in other_cores]
+                    conflicts = [c for c in selected_drops if c in other_cores]
                     if conflicts:
                         conflict_str = ", ".join(f"Core {c}" for c in conflicts)
                         self.add_error(
                             'dropped_cores',
-                            f"{conflict_str} is already dropped at '{other.site_display}' ({other.get_point_type_display()}). Each core can only be dropped once along the route."
+                            f"{conflict_str} is already terminated at '{other.site_display}' ({other.get_point_type_display()}). Circuit complete - each core can only be dropped once along the route."
                         )
                         break
 
         # Validate passed cores
-        passed_cores_str = cleaned_data.get('passed_cores')
-
         if point_type == 'end':
             # End points do not have outgoing passed cores
             cleaned_data['passed_cores'] = ''
-        elif fiber_route and dropped_cores_str and passed_cores_str and point_type != 'start':
-            selected_drops = set(parse_core_string(dropped_cores_str))
-            selected_passes = set(parse_core_string(passed_cores_str))
-            overlap = selected_drops.intersection(selected_passes)
-            if overlap:
-                overlap_str = ", ".join(f"Core {c}" for c in sorted(list(overlap)))
+        elif fiber_route and passed_cores_str:
+            selected_passes = parse_core_string(passed_cores_str)
+            total_cores = fiber_route.total_cores
+
+            invalid_passes = [c for c in selected_passes if c < 1 or c > total_cores]
+            if invalid_passes:
                 self.add_error(
                     'passed_cores',
-                    f"{overlap_str} cannot be both Dropped and Passed through at this point."
+                    f"Passed core(s) {invalid_passes} are out of bounds (1-{total_cores})."
                 )
+
+            if point_type == 'drop':
+                # 1. Dropped cores and passed cores cannot overlap at this point
+                overlap = set(selected_drops).intersection(set(selected_passes))
+                if overlap:
+                    overlap_str = ", ".join(f"Core {c}" for c in sorted(list(overlap)))
+                    self.add_error(
+                        'passed_cores',
+                        f"{overlap_str} is selected in Dropped Cores and cannot simultaneously pass through."
+                    )
+
+                # 2. Cannot pass a core that was already terminated upstream
+                other_consuming = FiberDropPoint.objects.filter(
+                    fiber_route=fiber_route,
+                    point_type__in=['drop', 'end']
+                )
+                if self.instance and self.instance.pk:
+                    other_consuming = other_consuming.exclude(pk=self.instance.pk)
+
+                for other in other_consuming:
+                    other_cores = set(other.parsed_dropped_cores)
+                    pass_conflicts = [c for c in selected_passes if c in other_cores]
+                    if pass_conflicts:
+                        conflict_str = ", ".join(f"Core {c}" for c in pass_conflicts)
+                        self.add_error(
+                            'passed_cores',
+                            f"{conflict_str} was already terminated at '{other.site_display}'. It cannot pass through this point because its circuit is complete."
+                        )
+                        break
 
         return self.cleaned_data
 

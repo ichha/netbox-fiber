@@ -134,16 +134,29 @@
         <span class="badge bg-white text-primary fw-bold">{{ object.total_length_km }} KM &bull; {{ drop_points|length }} Drop Points</span>
       </div>
       <div class="card-body p-3">
-        <div class="d-flex justify-content-between align-items-center mb-2">
+        <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-2">
           <span class="text-muted small">
-            Click any site or drop point name above the boxes to open its NetBox page. Box heights dynamically scale with the {{ object.total_cores }} fiber cores.
+            Click any site or drop point name above the boxes to open its NetBox page. Diagram scales horizontally for any number of drop points.
           </span>
-          <span class="badge bg-light text-dark border">Auto-Scaled View</span>
+          <div class="d-flex align-items-center gap-2">
+            <span class="badge bg-light text-dark border">{{ drop_points|length }} Drop Points</span>
+            <div class="btn-group btn-group-sm" role="group">
+              <button type="button" class="btn btn-outline-secondary" id="schematic-zoom-out" title="Zoom Out">
+                <i class="mdi mdi-magnify-minus"></i>
+              </button>
+              <button type="button" class="btn btn-outline-secondary" id="schematic-zoom-reset" title="Reset Zoom">
+                100%
+              </button>
+              <button type="button" class="btn btn-outline-secondary" id="schematic-zoom-in" title="Zoom In">
+                <i class="mdi mdi-magnify-plus"></i>
+              </button>
+            </div>
+          </div>
         </div>
         
         <!-- Interactive Schematic Canvas/SVG Container -->
         <div id="schematic-container" style="width: 100%; overflow-x: auto; background: var(--bs-body-bg); border-radius: 8px; border: 1px solid var(--bs-border-color); padding: 15px;">
-          <svg id="schematic-svg" style="width: 100%; min-width: 950px; font-family: system-ui, -apple-system, sans-serif;"></svg>
+          <svg id="schematic-svg" style="font-family: system-ui, -apple-system, sans-serif; transition: transform 0.2s ease; transform-origin: top left;"></svg>
         </div>
       </div>
     </div>
@@ -309,10 +322,16 @@ document.addEventListener('DOMContentLoaded', function() {
   if (!svg) return;
 
   const containerWidth = svg.parentElement.clientWidth - 40;
-  const width = Math.max(containerWidth, 980);
+  const dropNodes = nodesData.filter(n => n.type === 'drop');
+  const numDrops = dropNodes.length;
+
+  // Dynamically calculate width: each drop point gets at least 260px horizontal space
+  const dropSpacing = 260;
+  const minRequiredWidth = 50 + 160 + Math.max(1, numDrops) * dropSpacing + 160 + 80;
+  const width = Math.max(containerWidth, 980, minRequiredWidth);
 
   // Dynamic box height and canvas height scaled to total cores
-  const coreSpacing = 30;
+  const coreSpacing = totalCores > 24 ? 20 : (totalCores > 12 ? 24 : 30);
   const coresHeight = Math.max(1, totalCores - 1) * coreSpacing;
   const boxH = Math.max(130, coresHeight + 60);
   const dropBoxH = 85;
@@ -321,7 +340,8 @@ document.addEventListener('DOMContentLoaded', function() {
 
   const svgHeight = boxH + 280;
   svg.setAttribute('viewBox', `0 0 ${width} ${svgHeight}`);
-  svg.style.width = '100%';
+  svg.style.width = `${width}px`;
+  svg.style.minWidth = `${width}px`;
   svg.style.height = `${svgHeight}px`;
 
   // Theme Colors
@@ -545,6 +565,30 @@ document.addEventListener('DOMContentLoaded', function() {
   }
 
   svg.innerHTML = svgContent;
+
+  // Zoom and Pan Controls
+  let currentZoom = 1.0;
+  const zoomInBtn = document.getElementById('schematic-zoom-in');
+  const zoomOutBtn = document.getElementById('schematic-zoom-out');
+  const zoomResetBtn = document.getElementById('schematic-zoom-reset');
+
+  function applyZoom(z) {
+    currentZoom = Math.min(2.0, Math.max(0.4, Math.round(z * 100) / 100));
+    svg.style.transform = `scale(${currentZoom})`;
+    if (zoomResetBtn) {
+      zoomResetBtn.textContent = `${Math.round(currentZoom * 100)}%`;
+    }
+  }
+
+  if (zoomInBtn) {
+    zoomInBtn.addEventListener('click', () => applyZoom(currentZoom + 0.15));
+  }
+  if (zoomOutBtn) {
+    zoomOutBtn.addEventListener('click', () => applyZoom(currentZoom - 0.15));
+  }
+  if (zoomResetBtn) {
+    zoomResetBtn.addEventListener('click', () => applyZoom(1.0));
+  }
 });
 </script>
 {% endblock %}

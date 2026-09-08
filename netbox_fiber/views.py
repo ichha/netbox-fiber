@@ -76,7 +76,13 @@ class FiberRouteView(generic.ObjectView):
 
     def get_extra_context(self, request, instance):
         drop_points = instance.get_ordered_drop_points()
+        all_points = instance.get_all_points()
         core_map = instance.get_core_map()
+
+        start_dp = instance.start_point_obj
+        end_dp = instance.end_point_obj
+        start_url = start_dp.site.get_absolute_url() if (start_dp and start_dp.site) else (instance.start_site.get_absolute_url() if instance.start_site else None)
+        end_url = end_dp.site.get_absolute_url() if (end_dp and end_dp.site) else (instance.end_site.get_absolute_url() if instance.end_site else None)
 
         # Build linear schematic data for frontend rendering
         schematic_nodes = [
@@ -85,8 +91,8 @@ class FiberRouteView(generic.ObjectView):
                 'name': instance.start_point_display,
                 'point_name': 'Starting Point',
                 'type': 'start',
-                'km': 0,
-                'url': instance.start_site.get_absolute_url() if instance.start_site else None,
+                'km': float(start_dp.distance_km) if (start_dp and start_dp.distance_km) else 0.0,
+                'url': start_url,
                 'dropped_cores': instance.parsed_start_cores,
             }
         ]
@@ -106,14 +112,15 @@ class FiberRouteView(generic.ObjectView):
             'name': instance.end_point_display,
             'point_name': 'End Point',
             'type': 'end',
-            'km': float(instance.total_length_km) if instance.total_length_km else 0.0,
-            'url': instance.end_site.get_absolute_url() if instance.end_site else None,
+            'km': float(end_dp.distance_km) if (end_dp and end_dp.distance_km) else (float(instance.total_length_km) if instance.total_length_km else 0.0),
+            'url': end_url,
             'dropped_cores': instance.parsed_end_cores,
         })
 
         return {
             'drop_points': drop_points,
-            'drop_points_table': FiberDropPointTable(drop_points),
+            'all_points': all_points,
+            'drop_points_table': FiberDropPointTable(all_points),
             'core_map': core_map,
             'schematic_nodes': schematic_nodes,
             'schematic_nodes_json': json.dumps(schematic_nodes),
@@ -156,6 +163,7 @@ class FiberDropPointView(generic.ObjectView):
 class FiberDropPointEditView(generic.ObjectEditView):
     queryset = FiberDropPoint.objects.all()
     form = FiberDropPointForm
+    template_name = 'netbox_fiber/fiberdroppoint_edit.html'
 
 
 class FiberDropPointDeleteView(generic.ObjectDeleteView):
@@ -380,3 +388,53 @@ class FiberTopologyDataAPI(View):
                 'total_routes': routes.count(),
             }
         })
+
+
+class FiberRouteCoreAvailabilityAPI(View):
+    """
+    API endpoint returning core availability and existing allocations for a fiber route.
+    Used by the Drop Point form dynamic core selection widget.
+    Query parameters:
+      - route_id: Primary key of FiberRoute
+      - drop_point_id: Optional PK of current FiberDropPoint (to exclude its own allocated cores when editing)
+    """
+    def get(self, request):
+        route_id = request.GET.get('route_id')
+        current_dp_id = request.GET.get('drop_point_id')
+
+        if not route_id:
+            return JsonResponse({'error': 'route_id is required'}, status=400)
+
+        route = get_object_or_404(FiberRoute, pk=route_id)
+        total_cores = route.total_cores
+
+        # Find other drop points for this route
+        drop_points = FiberDropPoint.objects.filter(fiber_route=route)
+        if current_dp_id:
+            drop_points = drop_points.exclude(pk=current_dp_id)
+
+        allocated_cores = {}
+        for dp in drop_points:
+            for c in dp.parsed_dropped_cores:
+                allocated_cores[c] = {
+                    'point_id': dp.pk,
+                    'point_name': dp.site_display,
+                    'point_type': dp.get_point_type_display(),
+                }
+
+        # Current drop point's own cores (if editing)
+        current_cores = []
+        if current_dp_id:
+            curr_dp = FiberDropPoint.objects.filter(pk=current_dp_id).first()
+            if curr_dp:
+                current_cores = curr_dp.parsed_dropped_cores
+
+        return JsonResponse({
+            'route_id': route.pk,
+            'route_name': route.name,
+            'total_cores': total_cores,
+            'cores': list(range(1, total_cores + 1)),
+            'allocated_cores': allocated_cores,
+            'current_cores': current_cores,
+        })
+

@@ -183,26 +183,53 @@ class FiberRoute(NetBoxModel):
         return reverse('plugins:netbox_fiber:fiberroute', args=[self.pk])
 
     @property
+    def start_point_obj(self):
+        return self.drop_points.filter(point_type='start').first()
+
+    @property
+    def end_point_obj(self):
+        return self.drop_points.filter(point_type='end').first()
+
+    @property
     def start_point_display(self):
+        sp = self.start_point_obj
+        if sp:
+            return sp.site_display
         if self.start_site:
             return self.start_site.name
         return self.start_site_name or 'Starting Point'
 
     @property
     def end_point_display(self):
+        ep = self.end_point_obj
+        if ep:
+            return ep.site_display
         if self.end_site:
             return self.end_site.name
         return self.end_site_name or 'End Point'
 
     @property
     def parsed_start_cores(self):
+        sp = self.start_point_obj
+        if sp:
+            return sp.parsed_dropped_cores
         return parse_core_string(self.start_cores_dropped)
 
     @property
     def parsed_end_cores(self):
+        ep = self.end_point_obj
+        if ep:
+            return ep.parsed_dropped_cores
         return parse_core_string(self.end_cores_dropped)
 
     def get_ordered_drop_points(self):
+        # Return intermediate drop points (excluding start and end points if specified)
+        intermediate = self.drop_points.exclude(point_type__in=['start', 'end']).order_by('sequence', 'id')
+        if intermediate.exists():
+            return intermediate
+        return self.drop_points.all().order_by('sequence', 'id')
+
+    def get_all_points(self):
         return self.drop_points.all().order_by('sequence', 'id')
 
     def get_core_map(self):
@@ -269,7 +296,10 @@ class FiberDropPoint(NetBoxModel):
     where specific cores are dropped or spliced.
     """
     POINT_TYPE_CHOICES = [
-        ('site', 'Site'),
+        ('start', 'Starting Point (Origin)'),
+        ('drop', 'Intermediate Drop Point'),
+        ('end', 'End Point (Destination)'),
+        ('site', 'Site (Drop Point)'),
         ('joint_box', 'Joint Closure / Splice Box'),
         ('odf', 'ODF / Patch Panel'),
         ('pole', 'Pole / Manhole'),

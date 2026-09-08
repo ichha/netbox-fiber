@@ -33,4 +33,7 @@ urlpatterns = [
     # Topology View
     path('topology/', views.FiberTopologyView.as_view(), name='topology_view'),
     path('api/topology-data/', views.FiberTopologyDataAPI.as_view(), name='topology_data_api'),
+
+    # Route Core Availability API
+    path('api/route-cores/', views.FiberRouteCoreAvailabilityAPI.as_view(), name='route_cores_api'),
 ]

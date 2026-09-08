@@ -1,0 +1,327 @@
+{% extends 'generic/object_edit.html' %}
+
+{% block content %}
+{{ block.super }}
+
+<style>
+  .core-selector-container {
+    background: var(--bs-tertiary-bg, #f8fafc);
+    border: 1px solid var(--bs-border-color, #e2e8f0);
+    border-radius: 8px;
+    padding: 16px;
+    margin-top: 10px;
+    margin-bottom: 15px;
+  }
+  .core-btn-grid {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 10px;
+  }
+  .core-pill-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 14px;
+    border-radius: 20px;
+    border: 1.5px solid var(--bs-border-color, #cbd5e1);
+    background: var(--bs-body-bg, #ffffff);
+    color: var(--bs-body-color, #1e293b);
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.15s ease-in-out;
+    user-select: none;
+  }
+  .core-pill-btn:hover:not(.disabled):not(:disabled) {
+    border-color: #0d6efd;
+    background: rgba(13, 110, 253, 0.08);
+  }
+  .core-pill-btn.active {
+    background: #198754 !important;
+    border-color: #198754 !important;
+    color: #ffffff !important;
+    box-shadow: 0 2px 4px rgba(25, 135, 84, 0.25);
+  }
+  .core-pill-btn.disabled, .core-pill-btn:disabled {
+    background: var(--bs-secondary-bg, #e2e8f0) !important;
+    border-color: var(--bs-border-color, #cbd5e1) !important;
+    color: var(--bs-secondary-color, #94a3b8) !important;
+    cursor: not-allowed;
+    opacity: 0.65;
+    text-decoration: line-through;
+  }
+  .core-pill-btn.current-saved {
+    border-color: #198754;
+  }
+  .core-badge-tag {
+    font-size: 10px;
+    padding: 1px 6px;
+    border-radius: 10px;
+    background: rgba(0,0,0,0.08);
+  }
+</style>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+  initCoreSelector();
+});
+document.addEventListener('htmx:load', function() {
+  initCoreSelector();
+});
+
+function initCoreSelector() {
+  const droppedInput = document.getElementById('id_dropped_cores');
+  const routeSelect = document.getElementById('id_fiber_route');
+  const pointTypeSelect = document.getElementById('id_point_type');
+  if (!droppedInput || !routeSelect) return;
+
+  // Prevent duplicate initialization
+  if (document.getElementById('core-selector-widget')) return;
+
+  // Create UI Container for Core Selector
+  const widgetBox = document.createElement('div');
+  widgetBox.id = 'core-selector-widget';
+  widgetBox.className = 'core-selector-container';
+
+  widgetBox.innerHTML = `
+    <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-2 pb-2 border-bottom">
+      <div>
+        <h6 class="mb-0 fw-bold text-primary">
+          <i class="mdi mdi-checkbox-multiple-marked-outline me-1"></i>Interactive Fiber Core Selector
+        </h6>
+        <small class="text-muted" id="core-selector-hint">
+          Select cores dropped/spliced at this point. Cores allocated at other drop points will be disabled.
+        </small>
+      </div>
+      <div class="btn-group btn-group-sm" role="group">
+        <button type="button" class="btn btn-outline-primary" id="btn-select-all-cores">
+          <i class="mdi mdi-check-all me-1"></i>Select All Available
+        </button>
+        <button type="button" class="btn btn-outline-secondary" id="btn-clear-cores">
+          <i class="mdi mdi-close me-1"></i>Clear
+        </button>
+      </div>
+    </div>
+    <div id="core-pill-list" class="core-btn-grid">
+      <div class="text-muted small py-2">
+        <i class="mdi mdi-loading mdi-spin me-1"></i>Please select a Fiber Route above to load cores...
+      </div>
+    </div>
+    <div class="d-flex justify-content-between align-items-center mt-2 pt-2 border-top small">
+      <span id="core-selection-summary" class="fw-semibold text-secondary">Selected: None</span>
+      <span class="text-muted">Direct input below stays synchronized</span>
+    </div>
+  `;
+
+  // Insert widget right above id_dropped_cores form group / parent
+  const inputRow = droppedInput.closest('.form-group, .mb-3, .row, tr') || droppedInput.parentElement;
+  if (inputRow && inputRow.parentElement) {
+    inputRow.parentElement.insertBefore(widgetBox, inputRow);
+  } else {
+    droppedInput.insertAdjacentElement('beforebegin', widgetBox);
+  }
+
+  // Determine current Drop Point ID (if editing existing)
+  const pathParts = window.location.pathname.split('/').filter(Boolean);
+  let currentDpId = null;
+  // If editing e.g. /plugins/fiber/drop-points/12/edit/
+  const editIdx = pathParts.indexOf('edit');
+  if (editIdx > 0 && !isNaN(pathParts[editIdx - 1])) {
+    currentDpId = pathParts[editIdx - 1];
+  }
+
+  // Track active selection
+  let selectedCores = new Set();
+  let availableCores = [];
+  let allocatedMap = {};
+
+  // Parse existing cores from input
+  function readInputCores() {
+    selectedCores.clear();
+    const val = droppedInput.value || '';
+    const parts = val.replace(/;/g, ',').split(',');
+    parts.forEach(p => {
+      p = p.trim();
+      if (!p) return;
+      if (p.includes('-')) {
+        const sub = p.split('-').map(s => parseInt(s.trim(), 10));
+        if (sub.length === 2 && !isNaN(sub[0]) && !isNaN(sub[1])) {
+          const start = Math.min(sub[0], sub[1]);
+          const end = Math.max(sub[0], sub[1]);
+          for (let i = start; i <= end; i++) selectedCores.add(i);
+        }
+      } else {
+        const num = parseInt(p, 10);
+        if (!isNaN(num)) selectedCores.add(num);
+      }
+    });
+  }
+
+  // Update input and summary from selectedCores
+  function syncToInput() {
+    const sorted = Array.from(selectedCores).sort((a, b) => a - b);
+    droppedInput.value = sorted.join(', ');
+
+    const summaryEl = document.getElementById('core-selection-summary');
+    if (summaryEl) {
+      if (sorted.length === 0) {
+        summaryEl.textContent = 'Selected: None';
+        summaryEl.className = 'fw-semibold text-secondary';
+      } else {
+        summaryEl.textContent = `Selected: ${sorted.length} core(s) (${sorted.map(c => 'Core ' + c).join(', ')})`;
+        summaryEl.className = 'fw-semibold text-success';
+      }
+    }
+
+    // Update active class on buttons
+    document.querySelectorAll('.core-pill-btn').forEach(btn => {
+      const coreNum = parseInt(btn.dataset.core, 10);
+      if (selectedCores.has(coreNum)) {
+        btn.classList.add('active');
+        const icon = btn.querySelector('.core-check-icon');
+        if (icon) icon.className = 'mdi mdi-check-circle core-check-icon';
+      } else {
+        btn.classList.remove('active');
+        const icon = btn.querySelector('.core-check-icon');
+        if (icon) icon.className = 'mdi mdi-circle-outline core-check-icon';
+      }
+    });
+  }
+
+  // Fetch route cores from API
+  function loadRouteCores(routeId) {
+    const listEl = document.getElementById('core-pill-list');
+    if (!listEl) return;
+
+    if (!routeId) {
+      listEl.innerHTML = '<div class="text-muted small py-2"><i class="mdi mdi-arrow-up me-1"></i>Select a Fiber Route above to load and select cores.</div>';
+      return;
+    }
+
+    listEl.innerHTML = '<div class="text-muted small py-2"><i class="mdi mdi-loading mdi-spin me-1"></i>Loading available cores for route...</div>';
+
+    let url = `/plugins/fiber/api/route-cores/?route_id=${encodeURIComponent(routeId)}`;
+    if (currentDpId) {
+      url += `&drop_point_id=${encodeURIComponent(currentDpId)}`;
+    }
+
+    fetch(url)
+      .then(res => {
+        if (!res.ok) throw new Error(`HTTP error ${res.status}`);
+        return res.json();
+      })
+      .then(data => {
+        if (!data || !data.total_cores) {
+          listEl.innerHTML = '<div class="alert alert-warning p-2 small mb-0">No cores found for selected route.</div>';
+          return;
+        }
+
+        readInputCores();
+        allocatedMap = data.allocated_cores || {};
+        availableCores = [];
+        listEl.innerHTML = '';
+
+        for (let c = 1; c <= data.total_cores; c++) {
+          const isAllocatedElsewhere = !!allocatedMap[c];
+          const allocInfo = allocatedMap[c];
+          const isCurrentSelected = selectedCores.has(c);
+
+          const btn = document.createElement('button');
+          btn.type = 'button';
+          btn.dataset.core = c;
+
+          if (isAllocatedElsewhere) {
+            btn.className = 'core-pill-btn disabled';
+            btn.disabled = true;
+            btn.title = `Core ${c} is already allocated at ${allocInfo.point_name} (${allocInfo.point_type})`;
+            btn.innerHTML = `
+              <i class="mdi mdi-lock text-danger"></i>
+              <span>Core ${c}</span>
+              <span class="core-badge-tag text-muted">${allocInfo.point_name}</span>
+            `;
+          } else {
+            availableCores.push(c);
+            btn.className = `core-pill-btn ${isCurrentSelected ? 'active' : ''}`;
+            btn.title = `Click to toggle Core ${c}`;
+            btn.innerHTML = `
+              <i class="mdi ${isCurrentSelected ? 'mdi-check-circle' : 'mdi-circle-outline'} core-check-icon"></i>
+              <span>Core ${c}</span>
+            `;
+
+            btn.addEventListener('click', function(e) {
+              e.preventDefault();
+              if (selectedCores.has(c)) {
+                selectedCores.delete(c);
+              } else {
+                selectedCores.add(c);
+              }
+              syncToInput();
+            });
+          }
+
+          listEl.appendChild(btn);
+        }
+
+        syncToInput();
+      })
+      .catch(err => {
+        console.error("Error loading route cores:", err);
+        listEl.innerHTML = `<div class="alert alert-warning p-2 small mb-0">Failed to load cores: ${err.message}</div>`;
+      });
+  }
+
+  // Quick Action Buttons
+  document.getElementById('btn-select-all-cores').addEventListener('click', function(e) {
+    e.preventDefault();
+    availableCores.forEach(c => selectedCores.add(c));
+    syncToInput();
+  });
+
+  document.getElementById('btn-clear-cores').addEventListener('click', function(e) {
+    e.preventDefault();
+    selectedCores.clear();
+    syncToInput();
+  });
+
+  // Listen to manual changes on droppedInput
+  droppedInput.addEventListener('input', function() {
+    readInputCores();
+    syncToInput();
+  });
+
+  // Listen to route selection changes
+  routeSelect.addEventListener('change', function() {
+    loadRouteCores(this.value);
+  });
+
+  // Listen to point_type selection changes
+  if (pointTypeSelect) {
+    pointTypeSelect.addEventListener('change', function() {
+      const hint = document.getElementById('core-selector-hint');
+      if (!hint) return;
+      if (this.value === 'start') {
+        hint.textContent = 'Starting Point: Select cores originating or terminated at the starting terminal (e.g. all route cores).';
+      } else if (this.value === 'end') {
+        hint.textContent = 'End Point: Select cores terminating at the destination terminal.';
+      } else {
+        hint.textContent = 'Intermediate Drop: Select cores spliced or dropped into this local splice closure / site.';
+      }
+    });
+  }
+
+  // Initial load if route already selected
+  if (routeSelect.value) {
+    loadRouteCores(routeSelect.value);
+  } else {
+    // Check URL parameters for preselected fiber_route
+    const urlParams = new URLSearchParams(window.location.search);
+    const preRoute = urlParams.get('fiber_route');
+    if (preRoute) {
+      routeSelect.value = preRoute;
+      loadRouteCores(preRoute);
+    }
+  }
+}
+</script>
+{% endblock %}

@@ -37,34 +37,10 @@ class FiberRouteForm(NetBoxModelForm):
         required=True,
         label='Vendor'
     )
-    start_site = DynamicModelChoiceField(
-        queryset=Site.objects.all(),
-        required=False,
-        label='Starting Point Site'
-    )
-    end_site = DynamicModelChoiceField(
-        queryset=Site.objects.all(),
-        required=False,
-        label='End Point Site'
-    )
-
-    # Optional quick-add for multiple drop points at once
-    quick_drop_points = forms.CharField(
-        widget=forms.Textarea(attrs={
-            'rows': 4,
-            'placeholder': 'Thameldanda, 3-4, 5.2\nAdamghat, 5-6, 10.5\nGajuri, 1-2, 14.855'
-        }),
-        required=False,
-        label='Quick Add Multiple Drop Points',
-        help_text="Format per line: Name / Site, Dropped Cores, [Optional KM Distance]. Automatically creates drop points."
-    )
-
     class Meta:
         model = FiberRoute
         fields = (
             'name', 'vendor', 'cable_type', 'status', 'total_length_km', 'total_cores',
-            'start_site', 'start_site_name', 'start_cores_dropped',
-            'end_site', 'end_site_name', 'end_cores_dropped',
             'description', 'comments', 'tags',
         )
 
@@ -72,48 +48,8 @@ class FiberRouteForm(NetBoxModelForm):
         fieldsets = (
             FieldSet('name', 'vendor', 'cable_type', 'status', 'tags', name='General Route Information'),
             FieldSet('total_length_km', 'total_cores', name='Cable Capacity & Distance'),
-            FieldSet('start_site', 'start_site_name', 'start_cores_dropped', name='Starting Point'),
-            FieldSet('end_site', 'end_site_name', 'end_cores_dropped', name='End Point'),
-            FieldSet('quick_drop_points', name='Drop Points (Quick Entry)'),
-            FieldSet('description', name='Additional Notes'),
+            FieldSet('description', 'comments', name='Additional Notes'),
         )
-
-    def save(self, commit=True):
-        instance = super().save(commit=commit)
-        quick_dp = self.cleaned_data.get('quick_drop_points', '').strip()
-        if quick_dp and commit:
-            self._process_quick_drop_points(instance, quick_dp)
-        return instance
-
-    def _process_quick_drop_points(self, route, quick_dp_text):
-        """
-        Parses multi-line text input to create drop points along the route.
-        Format: Name, Dropped Cores, [Optional Distance KM]
-        """
-        lines = [line.strip() for line in quick_dp_text.split('\n') if line.strip()]
-        start_seq = route.drop_points.count() + 1
-        for idx, line in enumerate(lines, start=start_seq):
-            parts = [p.strip() for p in line.split(',')]
-            if len(parts) >= 2:
-                name = parts[0]
-                dropped = parts[1]
-                distance = None
-                if len(parts) >= 3:
-                    try:
-                        distance = float(parts[2])
-                    except ValueError:
-                        distance = None
-
-                site_match = Site.objects.filter(name__iexact=name).first()
-
-                FiberDropPoint.objects.create(
-                    fiber_route=route,
-                    name=name,
-                    site=site_match,
-                    sequence=idx,
-                    distance_km=distance,
-                    dropped_cores=dropped
-                )
 
 
 class FiberDropPointForm(NetBoxModelForm):
@@ -126,6 +62,13 @@ class FiberDropPointForm(NetBoxModelForm):
         queryset=Site.objects.all(),
         required=False,
         label='NetBox Site'
+    )
+    point_type = forms.ChoiceField(
+        choices=FiberDropPoint.POINT_TYPE_CHOICES,
+        initial='drop',
+        required=True,
+        label='Point Type',
+        help_text='Designate whether this is a Starting Point, Intermediate Drop, or End Point'
     )
 
     class Meta:
@@ -141,8 +84,43 @@ class FiberDropPointForm(NetBoxModelForm):
             FieldSet('fiber_route', 'site', 'name', 'point_type', 'tags', name='Route & Location'),
             FieldSet('sequence', 'distance_km', name='Sequence & Position'),
             FieldSet('dropped_cores', 'passed_cores', name='Core Drop Allocation'),
-            FieldSet('description', name='Notes'),
+            FieldSet('description', 'comments', name='Notes'),
         )
+
+    def clean(self):
+        cleaned_data = super().clean()
+        fiber_route = cleaned_data.get('fiber_route')
+        dropped_cores_str = cleaned_data.get('dropped_cores')
+
+        if fiber_route and dropped_cores_str:
+            selected_cores = parse_core_string(dropped_cores_str)
+            total_cores = fiber_route.total_cores
+
+            # Check valid core bounds
+            invalid_cores = [c for c in selected_cores if c < 1 or c > total_cores]
+            if invalid_cores:
+                self.add_error(
+                    'dropped_cores',
+                    f"Selected core(s) {invalid_cores} are out of bounds. Route '{fiber_route.name}' only has {total_cores} cores."
+                )
+
+            # Check conflicts with other drop points on this route
+            other_points = FiberDropPoint.objects.filter(fiber_route=fiber_route)
+            if self.instance and self.instance.pk:
+                other_points = other_points.exclude(pk=self.instance.pk)
+
+            for other in other_points:
+                other_cores = set(other.parsed_dropped_cores)
+                conflicts = [c for c in selected_cores if c in other_cores]
+                if conflicts:
+                    conflict_str = ", ".join(f"Core {c}" for c in conflicts)
+                    self.add_error(
+                        'dropped_cores',
+                        f"{conflict_str} is already allocated at '{other.site_display}' ({other.get_point_type_display()}). Each core can only be allocated once per route."
+                    )
+                    break
+
+        return cleaned_data
 
 
 # --- Filter Forms ---

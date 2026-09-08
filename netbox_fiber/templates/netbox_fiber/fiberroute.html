@@ -191,33 +191,41 @@
   </div>
 </div>
 
-<!-- Ordered Drop Points Table -->
+<!-- Ordered Route Points Table -->
 <div class="row mb-3">
   <div class="col col-md-12">
     <div class="card">
-      <div class="card-header d-flex justify-content-between align-items-center py-2">
-        <h5 class="mb-0"><i class="mdi mdi-source-branch me-1 text-warning"></i>Intermediate Drop Points along Route</h5>
-        <a href="{% url 'plugins:netbox_fiber:fiberdroppoint_add' %}?fiber_route={{ object.pk }}" class="btn btn-sm btn-success">
-          <i class="mdi mdi-plus-thick me-1"></i>Add Drop Point
-        </a>
+      <div class="card-header d-flex flex-wrap justify-content-between align-items-center gap-2 py-2">
+        <h5 class="mb-0"><i class="mdi mdi-source-branch me-1 text-warning"></i>Route Points & Core Allocations</h5>
+        <div class="btn-group btn-group-sm" role="group">
+          <a href="{% url 'plugins:netbox_fiber:fiberdroppoint_add' %}?fiber_route={{ object.pk }}&point_type=start" class="btn btn-outline-success">
+            <i class="mdi mdi-ray-start me-1"></i>Set Starting Point
+          </a>
+          <a href="{% url 'plugins:netbox_fiber:fiberdroppoint_add' %}?fiber_route={{ object.pk }}&point_type=drop" class="btn btn-success">
+            <i class="mdi mdi-plus-thick me-1"></i>Add Drop Point
+          </a>
+          <a href="{% url 'plugins:netbox_fiber:fiberdroppoint_add' %}?fiber_route={{ object.pk }}&point_type=end" class="btn btn-outline-primary">
+            <i class="mdi mdi-ray-end me-1"></i>Set End Point
+          </a>
+        </div>
       </div>
       <div class="card-body table-responsive">
-        {% if drop_points %}
+        {% if all_points %}
           <table class="table table-hover align-middle mb-0">
             <thead class="table-light">
               <tr>
                 <th style="width: 50px;">#</th>
-                <th>Drop Point / Site Name</th>
-                <th>Type</th>
+                <th>Point / Site Name</th>
+                <th>Role / Type</th>
                 <th>Distance (KM)</th>
-                <th>Dropped Cores</th>
+                <th>Dropped / Spliced Cores</th>
                 <th>Pass-through Cores</th>
                 <th>Description</th>
                 <th class="text-end">Actions</th>
               </tr>
             </thead>
             <tbody>
-              {% for dp in drop_points %}
+              {% for dp in all_points %}
                 <tr>
                   <td class="fw-bold">{{ dp.sequence }}</td>
                   <td>
@@ -233,7 +241,15 @@
                       <span class="badge bg-secondary-subtle text-secondary-emphasis border ms-1">Custom Point</span>
                     {% endif %}
                   </td>
-                  <td><span class="badge bg-secondary text-white">{{ dp.get_point_type_display }}</span></td>
+                  <td>
+                    {% if dp.point_type == 'start' %}
+                      <span class="badge bg-success text-white"><i class="mdi mdi-ray-start me-1"></i>Starting Point</span>
+                    {% elif dp.point_type == 'end' %}
+                      <span class="badge bg-primary text-white"><i class="mdi mdi-ray-end me-1"></i>End Point</span>
+                    {% else %}
+                      <span class="badge bg-warning text-dark">{{ dp.get_point_type_display }}</span>
+                    {% endif %}
+                  </td>
                   <td>
                     {% if dp.distance_km %}
                       <span class="badge bg-light text-dark border fs-6">{{ dp.distance_km }} KM</span>
@@ -245,7 +261,7 @@
                     {% for c in dp.parsed_dropped_cores %}
                       <span class="badge bg-success text-white me-1">Core {{ c }}</span>
                     {% empty %}
-                      <span class="badge bg-secondary text-white">{{ dp.dropped_cores }}</span>
+                      <span class="badge bg-secondary text-white">{{ dp.dropped_cores|default:"None" }}</span>
                     {% endfor %}
                   </td>
                   <td>
@@ -273,10 +289,16 @@
         {% else %}
           <div class="text-center py-4 text-muted">
             <i class="mdi mdi-information-outline fs-3 d-block mb-1"></i>
-            No intermediate drop points added yet. Cores run point-to-point from {{ object.start_point_display }} to {{ object.end_point_display }}.
-            <div class="mt-2">
-              <a href="{% url 'plugins:netbox_fiber:fiberdroppoint_add' %}?fiber_route={{ object.pk }}" class="btn btn-sm btn-outline-primary">
-                <i class="mdi mdi-plus me-1"></i>Add Drop Point Now
+            No points or core drops configured for this route yet.
+            <div class="mt-2 btn-group btn-group-sm">
+              <a href="{% url 'plugins:netbox_fiber:fiberdroppoint_add' %}?fiber_route={{ object.pk }}&point_type=start" class="btn btn-outline-success">
+                <i class="mdi mdi-ray-start me-1"></i>Set Starting Point
+              </a>
+              <a href="{% url 'plugins:netbox_fiber:fiberdroppoint_add' %}?fiber_route={{ object.pk }}&point_type=drop" class="btn btn-success">
+                <i class="mdi mdi-plus-thick me-1"></i>Add Drop Point
+              </a>
+              <a href="{% url 'plugins:netbox_fiber:fiberdroppoint_add' %}?fiber_route={{ object.pk }}&point_type=end" class="btn btn-outline-primary">
+                <i class="mdi mdi-ray-end me-1"></i>Set End Point
               </a>
             </div>
           </div>

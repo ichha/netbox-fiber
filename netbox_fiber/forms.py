@@ -1,11 +1,21 @@
 from django import forms
 from netbox.forms import NetBoxModelForm, NetBoxModelFilterSetForm
-from utilities.forms.fields import DynamicModelChoiceField, TagFilterField
+from utilities.forms.fields import DynamicModelChoiceField, TagFilterField, SlugField
 from dcim.models import Site
 from .models import FiberVendor, FiberRoute, FiberDropPoint, parse_core_string
 
+try:
+    from utilities.forms.rendering import FieldSet
+except ImportError:
+    try:
+        from utilities.forms import FieldSet
+    except ImportError:
+        FieldSet = None
+
 
 class FiberVendorForm(NetBoxModelForm):
+    slug = SlugField(slug_source='name')
+
     class Meta:
         model = FiberVendor
         fields = (
@@ -13,11 +23,12 @@ class FiberVendorForm(NetBoxModelForm):
             'description', 'comments', 'tags',
         )
 
-    fieldsets = (
-        ('Vendor Details', ('name', 'slug', 'tags')),
-        ('Contact Information', ('contact_name', 'contact_phone', 'contact_email')),
-        ('Description', ('description', 'comments')),
-    )
+    if FieldSet:
+        fieldsets = (
+            FieldSet('name', 'slug', 'tags', name='Vendor Details'),
+            FieldSet('contact_name', 'contact_phone', 'contact_email', name='Contact Information'),
+            FieldSet('description', name='Description'),
+        )
 
 
 class FiberRouteForm(NetBoxModelForm):
@@ -57,26 +68,15 @@ class FiberRouteForm(NetBoxModelForm):
             'description', 'comments', 'tags',
         )
 
-    fieldsets = (
-        ('General Route Information', (
-            'name', 'vendor', 'cable_type', 'status', 'tags'
-        )),
-        ('Cable Capacity & Distance', (
-            'total_length_km', 'total_cores'
-        )),
-        ('Starting Point', (
-            'start_site', 'start_site_name', 'start_cores_dropped'
-        )),
-        ('End Point', (
-            'end_site', 'end_site_name', 'end_cores_dropped'
-        )),
-        ('Drop Points (Quick Entry)', (
-            'quick_drop_points',
-        )),
-        ('Additional Notes', (
-            'description', 'comments'
-        )),
-    )
+    if FieldSet:
+        fieldsets = (
+            FieldSet('name', 'vendor', 'cable_type', 'status', 'tags', name='General Route Information'),
+            FieldSet('total_length_km', 'total_cores', name='Cable Capacity & Distance'),
+            FieldSet('start_site', 'start_site_name', 'start_cores_dropped', name='Starting Point'),
+            FieldSet('end_site', 'end_site_name', 'end_cores_dropped', name='End Point'),
+            FieldSet('quick_drop_points', name='Drop Points (Quick Entry)'),
+            FieldSet('description', name='Additional Notes'),
+        )
 
     def save(self, commit=True):
         instance = super().save(commit=commit)
@@ -104,7 +104,6 @@ class FiberRouteForm(NetBoxModelForm):
                     except ValueError:
                         distance = None
 
-                # Check if matches NetBox Site by name
                 site_match = Site.objects.filter(name__iexact=name).first()
 
                 FiberDropPoint.objects.create(
@@ -137,12 +136,13 @@ class FiberDropPointForm(NetBoxModelForm):
             'description', 'comments', 'tags',
         )
 
-    fieldsets = (
-        ('Route & Location', ('fiber_route', 'site', 'name', 'point_type', 'tags')),
-        ('Sequence & Position', ('sequence', 'distance_km')),
-        ('Core Drop Allocation', ('dropped_cores', 'passed_cores')),
-        ('Notes', ('description', 'comments')),
-    )
+    if FieldSet:
+        fieldsets = (
+            FieldSet('fiber_route', 'site', 'name', 'point_type', 'tags', name='Route & Location'),
+            FieldSet('sequence', 'distance_km', name='Sequence & Position'),
+            FieldSet('dropped_cores', 'passed_cores', name='Core Drop Allocation'),
+            FieldSet('description', name='Notes'),
+        )
 
 
 # --- Filter Forms ---

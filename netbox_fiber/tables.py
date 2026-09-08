@@ -61,7 +61,7 @@ class FiberDropPointTable(NetBoxTable):
     point_type = columns.ChoiceFieldColumn(verbose_name='Point Type')
     distance_km = tables.Column(verbose_name='Distance (KM)')
     dropped_cores = tables.TemplateColumn(
-        template_code='<span class="badge bg-primary fs-6">{{ record.dropped_cores }}</span>',
+        template_code='<span class="badge bg-primary text-white fs-6">{{ record.dropped_cores }}</span>',
         verbose_name='Dropped Cores'
     )
     passed_cores = tables.Column(verbose_name='Passed Cores')

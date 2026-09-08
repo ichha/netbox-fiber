@@ -138,14 +138,14 @@
                       <a href="{{ item.route.get_absolute_url }}" class="fs-5 fw-bold text-decoration-none">
                         {{ item.route.name }}
                       </a>
-                      <span class="badge bg-secondary ms-2">{{ item.route.get_cable_type_display }}</span>
-                      <span class="badge {% if item.route.status == 'active' %}bg-success{% elif item.route.status == 'planned' %}bg-info{% else %}bg-warning{% endif %} ms-1">
+                      <span class="badge bg-secondary text-white ms-2">{{ item.route.get_cable_type_display }}</span>
+                      <span class="badge {% if item.route.status == 'active' %}bg-success text-white{% elif item.route.status == 'planned' %}bg-info text-dark{% else %}bg-warning text-dark{% endif %} ms-1">
                         {{ item.route.get_status_display }}
                       </span>
                     </div>
                     <div class="d-flex align-items-center gap-2">
-                      <span class="badge bg-primary fs-6">{{ item.route.total_cores }} Cores</span>
-                      <span class="badge bg-dark fs-6">{{ item.route.total_length_km }} KM</span>
+                      <span class="badge bg-primary text-white fs-6">{{ item.route.total_cores }} Cores</span>
+                      <span class="badge bg-dark text-white fs-6">{{ item.route.total_length_km }} KM</span>
                       <a href="{{ item.route.get_absolute_url }}" class="btn btn-sm btn-outline-primary ms-2">
                         <i class="mdi mdi-eye me-1"></i>View Schematic & Drops
                       </a>

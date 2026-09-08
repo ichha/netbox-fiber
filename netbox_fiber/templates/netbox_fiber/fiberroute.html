@@ -8,7 +8,7 @@
     <div class="card h-100">
       <h5 class="card-header d-flex justify-content-between align-items-center">
         <span><i class="mdi mdi-ray-vertex me-1 text-primary"></i>Route Specifications</span>
-        <span class="badge {% if object.status == 'active' %}bg-success{% elif object.status == 'planned' %}bg-info{% else %}bg-warning{% endif %}">
+        <span class="badge {% if object.status == 'active' %}bg-success text-white{% elif object.status == 'planned' %}bg-info text-dark{% else %}bg-warning text-dark{% endif %}">
           {{ object.get_status_display }}
         </span>
       </h5>
@@ -32,11 +32,11 @@
           </tr>
           <tr>
             <th scope="row">Total Length</th>
-            <td><span class="badge bg-secondary fs-6">{{ object.total_length_km }} KM</span></td>
+            <td><span class="badge bg-secondary text-white fs-6">{{ object.total_length_km }} KM</span></td>
           </tr>
           <tr>
             <th scope="row">Total Fiber Cores</th>
-            <td><span class="badge bg-primary fs-6">{{ object.total_cores }} Cores</span></td>
+            <td><span class="badge bg-primary text-white fs-6">{{ object.total_cores }} Cores</span></td>
           </tr>
           <tr>
             <th scope="row">Description</th>
@@ -51,12 +51,19 @@
     <div class="card h-100">
       <h5 class="card-header"><i class="mdi mdi-map-marker-path me-1 text-success"></i>Endpoint & Drop Allocation</h5>
       <div class="card-body">
+        <!-- Start Point Block -->
         <div class="p-3 mb-3 bg-body-tertiary rounded border">
           <div class="d-flex align-items-center justify-content-between mb-1">
-            <span class="badge bg-success"><i class="mdi mdi-ray-start me-1"></i>Starting Point</span>
-            <span class="fw-bold text-success">{{ object.start_point_display }}</span>
+            <span class="badge bg-success text-white"><i class="mdi mdi-ray-start me-1"></i>Starting Point</span>
+            <span class="fw-bold text-success">
+              {% if object.start_site %}
+                <a href="{{ object.start_site.get_absolute_url }}" class="text-success text-decoration-none">{{ object.start_site.name }} <i class="mdi mdi-open-in-new small"></i></a>
+              {% else %}
+                {{ object.start_point_display }}
+              {% endif %}
+            </span>
           </div>
-          <div class="small text-muted mb-1">
+          <div class="small text-muted mb-2">
             {% if object.start_site %}
               Linked NetBox Site: <a href="{{ object.start_site.get_absolute_url }}">{{ object.start_site.name }}</a>
             {% else %}
@@ -64,10 +71,10 @@
             {% endif %}
           </div>
           <div>
-            <span class="text-muted small">Cores Dropped at Start:</span>
+            <span class="text-muted small fw-semibold me-2">Cores Dropped at Start:</span>
             {% if object.parsed_start_cores %}
               {% for c in object.parsed_start_cores %}
-                <span class="badge bg-success-subtle text-success-emphasis border border-success-subtle me-1">Core {{ c }}</span>
+                <span class="badge bg-success text-white me-1">Core {{ c }}</span>
               {% endfor %}
             {% else %}
               <span class="text-muted fst-italic small">All cores originate here</span>
@@ -75,12 +82,19 @@
           </div>
         </div>
 
+        <!-- End Point Block -->
         <div class="p-3 bg-body-tertiary rounded border">
           <div class="d-flex align-items-center justify-content-between mb-1">
-            <span class="badge bg-primary"><i class="mdi mdi-ray-end me-1"></i>End Point</span>
-            <span class="fw-bold text-primary">{{ object.end_point_display }}</span>
+            <span class="badge bg-primary text-white"><i class="mdi mdi-ray-end me-1"></i>End Point</span>
+            <span class="fw-bold text-primary">
+              {% if object.end_site %}
+                <a href="{{ object.end_site.get_absolute_url }}" class="text-primary text-decoration-none">{{ object.end_site.name }} <i class="mdi mdi-open-in-new small"></i></a>
+              {% else %}
+                {{ object.end_point_display }}
+              {% endif %}
+            </span>
           </div>
-          <div class="small text-muted mb-1">
+          <div class="small text-muted mb-2">
             {% if object.end_site %}
               Linked NetBox Site: <a href="{{ object.end_site.get_absolute_url }}">{{ object.end_site.name }}</a>
             {% else %}
@@ -88,10 +102,10 @@
             {% endif %}
           </div>
           <div>
-            <span class="text-muted small">Cores Dropped at End:</span>
+            <span class="text-muted small fw-semibold me-2">Cores Dropped at End:</span>
             {% if object.parsed_end_cores %}
               {% for c in object.parsed_end_cores %}
-                <span class="badge bg-primary-subtle text-primary-emphasis border border-primary-subtle me-1">Core {{ c }}</span>
+                <span class="badge bg-primary text-white me-1">Core {{ c }}</span>
               {% endfor %}
             {% else %}
               <span class="text-muted fst-italic small">None specified</span>
@@ -109,24 +123,27 @@
   </div>
 </div>
 
-<!-- Schematic Linear Core Allocation Diagram (Matching User's Drawing) -->
+<!-- Schematic Linear Core Allocation Diagram (Enhanced & Scaled) -->
 <div class="row mb-3">
   <div class="col col-md-12">
-    <div class="card">
+    <div class="card shadow-sm border-0">
       <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center py-2">
         <h5 class="mb-0 text-white">
           <i class="mdi mdi-vector-line me-1"></i>Fiber Schematic Diagram (Cores 1 to {{ object.total_cores }})
         </h5>
         <span class="badge bg-white text-primary fw-bold">{{ object.total_length_km }} KM &bull; {{ drop_points|length }} Drop Points</span>
       </div>
-      <div class="card-body">
-        <div class="text-muted small mb-2">
-          Schematic representation of fiber cores originating at <strong>{{ object.start_point_display }}</strong>, tapping off at intermediate drop points, and terminating at <strong>{{ object.end_point_display }}</strong>.
+      <div class="card-body p-3">
+        <div class="d-flex justify-content-between align-items-center mb-2">
+          <span class="text-muted small">
+            Click any site or drop point name above the boxes to open its NetBox page. Box heights dynamically scale with the {{ object.total_cores }} fiber cores.
+          </span>
+          <span class="badge bg-light text-dark border">Auto-Scaled View</span>
         </div>
         
         <!-- Interactive Schematic Canvas/SVG Container -->
-        <div id="schematic-container" style="min-height: 380px; width: 100%; overflow-x: auto; background: var(--bs-body-bg); border-radius: 6px; border: 1px solid var(--bs-border-color); padding: 15px;">
-          <svg id="schematic-svg" style="width: 100%; min-width: 800px; height: 360px; font-family: sans-serif;"></svg>
+        <div id="schematic-container" style="width: 100%; overflow-x: auto; background: var(--bs-body-bg); border-radius: 8px; border: 1px solid var(--bs-border-color); padding: 15px;">
+          <svg id="schematic-svg" style="width: 100%; min-width: 950px; font-family: system-ui, -apple-system, sans-serif;"></svg>
         </div>
       </div>
     </div>
@@ -163,26 +180,31 @@
                 <tr>
                   <td class="fw-bold">{{ dp.sequence }}</td>
                   <td>
-                    <a href="{{ dp.get_absolute_url }}" class="fw-bold text-decoration-none">
-                      {{ dp.site_display }}
-                    </a>
                     {% if dp.site %}
-                      <span class="badge bg-light text-dark border ms-1">NetBox Site</span>
+                      <a href="{{ dp.site.get_absolute_url }}" class="fw-bold text-decoration-none">
+                        {{ dp.site.name }} <i class="mdi mdi-open-in-new small text-muted"></i>
+                      </a>
+                      <span class="badge bg-primary-subtle text-primary border ms-1">NetBox Site</span>
+                    {% else %}
+                      <a href="{{ dp.get_absolute_url }}" class="fw-bold text-decoration-none">
+                        {{ dp.name }}
+                      </a>
+                      <span class="badge bg-secondary-subtle text-secondary-emphasis border ms-1">Custom Point</span>
                     {% endif %}
                   </td>
-                  <td><span class="badge bg-secondary">{{ dp.get_point_type_display }}</span></td>
+                  <td><span class="badge bg-secondary text-white">{{ dp.get_point_type_display }}</span></td>
                   <td>
                     {% if dp.distance_km %}
-                      <strong>{{ dp.distance_km }} KM</strong>
+                      <span class="badge bg-light text-dark border fs-6">{{ dp.distance_km }} KM</span>
                     {% else %}
                       <span class="text-muted">-</span>
                     {% endif %}
                   </td>
                   <td>
                     {% for c in dp.parsed_dropped_cores %}
-                      <span class="badge bg-success me-1">Core {{ c }}</span>
+                      <span class="badge bg-success text-white me-1">Core {{ c }}</span>
                     {% empty %}
-                      <span class="badge bg-secondary">{{ dp.dropped_cores }}</span>
+                      <span class="badge bg-secondary text-white">{{ dp.dropped_cores }}</span>
                     {% endfor %}
                   </td>
                   <td>
@@ -223,7 +245,7 @@
   </div>
 </div>
 
-<!-- Core Allocation Matrix -->
+<!-- Core Allocation Matrix (High Contrast Badges) -->
 <div class="row mb-3">
   <div class="col col-md-12">
     <div class="card">
@@ -234,7 +256,7 @@
         <table class="table table-hover table-bordered align-middle mb-0 text-center">
           <thead class="table-light">
             <tr>
-              <th style="width: 80px;">Core #</th>
+              <th style="width: 90px;">Core #</th>
               <th>Origination</th>
               <th>Status / Path</th>
               <th>Terminations / Drop Points</th>
@@ -244,7 +266,7 @@
             {% for cm in core_map %}
               <tr>
                 <td>
-                  <span class="badge rounded-pill" style="background-color: {{ cm.color }}; font-size: 0.95rem;">
+                  <span class="badge rounded-pill text-white px-2 py-1" style="background-color: {{ cm.color }}; font-size: 0.95rem;">
                     Core {{ cm.core_number }}
                   </span>
                 </td>
@@ -254,13 +276,13 @@
                   </span>
                 </td>
                 <td>
-                  <span class="fw-semibold" style="color: {{ cm.color }};">
+                  <span class="fw-bold" style="color: {{ cm.color }};">
                     {{ cm.status_label }}
                   </span>
                 </td>
                 <td>
                   {% for loc in cm.dropped_at %}
-                    <span class="badge {% if loc.type == 'start' %}bg-success{% elif loc.type == 'end' %}bg-primary{% else %}bg-warning text-dark{% endif %} me-1">
+                    <span class="badge {% if loc.type == 'start' %}bg-success text-white{% elif loc.type == 'end' %}bg-primary text-white{% else %}bg-warning text-dark border{% endif %} me-1 py-1">
                       {{ loc.role }}
                     </span>
                   {% empty %}
@@ -280,98 +302,189 @@
 document.addEventListener('DOMContentLoaded', function() {
   const nodesData = {{ schematic_nodes_json|safe }};
   const totalCores = {{ object.total_cores }};
-  const startName = "{{ object.start_point_display|escapejs }}";
-  const endName = "{{ object.end_point_display|escapejs }}";
   const totalKm = "{{ object.total_length_km }} KM";
+  const vendorName = "{{ object.vendor.name|escapejs }}";
 
   const svg = document.getElementById('schematic-svg');
   if (!svg) return;
 
-  const width = Math.max(svg.parentElement.clientWidth - 40, 850);
-  const height = 360;
-  svg.setAttribute('viewBox', `0 0 ${width} ${height}`);
+  const containerWidth = svg.parentElement.clientWidth - 40;
+  const width = Math.max(containerWidth, 980);
+
+  // Dynamic box height and canvas height scaled to total cores
+  const coreSpacing = 30;
+  const coresHeight = Math.max(1, totalCores - 1) * coreSpacing;
+  const boxH = Math.max(130, coresHeight + 60);
+  const dropBoxH = 85;
+  const dropBoxW = 200;
+  const boxW = 160;
+
+  const svgHeight = boxH + 280;
+  svg.setAttribute('viewBox', `0 0 ${width} ${svgHeight}`);
   svg.style.width = '100%';
-  svg.style.height = `${height}px`;
+  svg.style.height = `${svgHeight}px`;
 
-  // Colors
+  // Theme Colors
   const isDark = document.documentElement.getAttribute('data-bs-theme') === 'dark';
-  const textColor = isDark ? '#f8f9fa' : '#212529';
-  const boxBg = isDark ? '#2b3035' : '#ffffff';
-  const boxBorder = isDark ? '#495057' : '#0d6efd';
+  const textColor = isDark ? '#f8f9fa' : '#1e293b';
+  const mutedText = isDark ? '#94a3b8' : '#64748b';
+  const boxBg = isDark ? '#1e293b' : '#ffffff';
+  const panelBg = isDark ? '#0f172a' : '#f8fafc';
 
-  // Positions
-  const startX = 40;
-  const startY = 40;
-  const boxW = 130;
-  const boxH = 65;
+  const startX = 50;
+  const startY = 80;
+  const endX = width - boxW - 50;
+  const endY = startY;
 
-  const endX = width - boxW - 40;
-  const endY = 40;
-
-  // Render Start Site Box
-  let svgContent = '';
-  
-  // Header title & KM
-  svgContent += `
-    <text x="${width / 2}" y="25" text-anchor="middle" font-size="14" font-weight="bold" fill="${textColor}">
-      Vendor: {{ object.vendor.name|escapejs }} &bull; Total Distance: ${totalKm} &bull; Total Cores: ${totalCores}
-    </text>
-  `;
-
-  // Start Box
-  svgContent += `
-    <g>
-      <rect x="${startX}" y="${startY}" width="${boxW}" height="${boxH}" rx="6" fill="${boxBg}" stroke="#198754" stroke-width="2.5"/>
-      <text x="${startX + boxW/2}" y="${startY + 26}" text-anchor="middle" font-size="14" font-weight="bold" fill="#198754">${startName}</text>
-      <text x="${startX + boxW/2}" y="${startY + 48}" text-anchor="middle" font-size="11" fill="${textColor}">Start Site</text>
-    </g>
-  `;
-
-  // End Box
-  svgContent += `
-    <g>
-      <rect x="${endX}" y="${endY}" width="${boxW}" height="${boxH}" rx="6" fill="${boxBg}" stroke="#0d6efd" stroke-width="2.5"/>
-      <text x="${endX + boxW/2}" y="${endY + 26}" text-anchor="middle" font-size="14" font-weight="bold" fill="#0d6efd">${endName}</text>
-      <text x="${endX + boxW/2}" y="${endY + 48}" text-anchor="middle" font-size="11" fill="${textColor}">End Fiber</text>
-    </g>
-  `;
-
-  // Intermediate Drop Point Boxes
+  const startNode = nodesData.find(n => n.type === 'start');
+  const endNode = nodesData.find(n => n.type === 'end');
   const dropNodes = nodesData.filter(n => n.type === 'drop');
-  const numDrops = dropNodes.length;
+
+  let svgContent = '';
+
+  // 1. Top Route Title Bar
+  svgContent += `
+    <g>
+      <rect x="20" y="8" width="${width - 40}" height="32" rx="6" fill="${panelBg}" stroke="${isDark ? '#334155' : '#e2e8f0'}" stroke-width="1"/>
+      <text x="${width / 2}" y="29" text-anchor="middle" font-size="13" font-weight="bold" fill="${textColor}">
+        Vendor: <tspan fill="#0d6efd">${vendorName}</tspan> &bull; Total Route Distance: <tspan fill="#198754">${totalKm}</tspan> &bull; Cable Capacity: <tspan fill="#d97706">${totalCores} Cores</tspan>
+      </text>
+    </g>
+  `;
+
+  // Helper function to render site link
+  function renderSiteHeader(x, y, roleLabel, roleColor, siteName, url) {
+    let out = `
+      <text x="${x}" y="${y - 24}" text-anchor="middle" font-size="11" font-weight="bold" fill="${roleColor}" letter-spacing="1">
+        ${roleLabel.toUpperCase()}
+      </text>
+    `;
+    if (url) {
+      out += `
+        <a href="${url}" target="_blank" style="cursor: pointer;">
+          <text x="${x}" y="${y - 6}" text-anchor="middle" font-size="14" font-weight="bold" fill="#0d6efd" text-decoration="underline">
+            ${siteName} &#8599;
+          </text>
+        </a>
+      `;
+    } else {
+      out += `
+        <text x="${x}" y="${y - 6}" text-anchor="middle" font-size="14" font-weight="bold" fill="${textColor}">
+          ${siteName}
+        </text>
+      `;
+    }
+    return out;
+  }
+
+  // 2. Start Site Header & Box
+  svgContent += renderSiteHeader(
+    startX + boxW / 2,
+    startY,
+    startNode ? startNode.point_name : 'STARTING POINT',
+    '#198754',
+    startNode ? startNode.name : 'Start',
+    startNode ? startNode.url : null
+  );
+
+  svgContent += `
+    <g>
+      <rect x="${startX}" y="${startY}" width="${boxW}" height="${boxH}" rx="8" fill="${boxBg}" stroke="#198754" stroke-width="2.5" />
+      <rect x="${startX}" y="${startY}" width="${boxW}" height="26" rx="8" fill="#198754" fill-opacity="0.15" />
+      <text x="${startX + boxW / 2}" y="${startY + 18}" text-anchor="middle" font-size="11" font-weight="bold" fill="#198754">
+        TERMINAL BLOCK
+      </text>
+    </g>
+  `;
+
+  // 3. End Site Header & Box
+  svgContent += renderSiteHeader(
+    endX + boxW / 2,
+    endY,
+    endNode ? endNode.point_name : 'END POINT',
+    '#0d6efd',
+    endNode ? endNode.name : 'End',
+    endNode ? endNode.url : null
+  );
+
+  svgContent += `
+    <g>
+      <rect x="${endX}" y="${endY}" width="${boxW}" height="${boxH}" rx="8" fill="${boxBg}" stroke="#0d6efd" stroke-width="2.5" />
+      <rect x="${endX}" y="${endY}" width="${boxW}" height="26" rx="8" fill="#0d6efd" fill-opacity="0.15" />
+      <text x="${endX + boxW / 2}" y="${endY + 18}" text-anchor="middle" font-size="11" font-weight="bold" fill="#0d6efd">
+        END TERMINALS
+      </text>
+    </g>
+  `;
+
+  // 4. Drop Point Boxes Below
   const dropPositions = {};
+  const numDrops = dropNodes.length;
+  const dropY = startY + boxH + 90;
 
   if (numDrops > 0) {
-    const availableWidth = endX - (startX + boxW) - 80;
+    const availableWidth = endX - (startX + boxW) - 60;
     const step = availableWidth / (numDrops + 1);
 
     dropNodes.forEach((dp, index) => {
-      const dpX = (startX + boxW + 40) + (index + 1) * step - (boxW / 2);
-      const dpY = height - 100;
-      dropPositions[dp.id] = { x: dpX + boxW/2, y: dpY, boxX: dpX, boxY: dpY };
+      const dpX = (startX + boxW + 30) + (index + 1) * step - (dropBoxW / 2);
+      const dpCenterX = dpX + dropBoxW / 2;
+      dropPositions[dp.id] = { x: dpCenterX, y: dropY, boxX: dpX, boxY: dropY };
 
+      // Header Above Box
+      const roleText = `${dp.point_name} ${dp.km !== null ? `&bull; ${dp.km} KM` : ''}`;
+      svgContent += renderSiteHeader(
+        dpCenterX,
+        dropY,
+        roleText,
+        '#d97706',
+        dp.name,
+        dp.url
+      );
+
+      // Box
       svgContent += `
         <g>
-          <rect x="${dpX}" y="${dpY}" width="${boxW}" height="${boxH}" rx="6" fill="${boxBg}" stroke="#ffc107" stroke-width="2"/>
-          <text x="${dpX + boxW/2}" y="${dpY + 24}" text-anchor="middle" font-size="13" font-weight="bold" fill="${textColor}">${dp.name}</text>
-          <text x="${dpX + boxW/2}" y="${dpY + 44}" text-anchor="middle" font-size="11" fill="#b02a37">Drop Point</text>
+          <rect x="${dpX}" y="${dropY}" width="${dropBoxW}" height="${dropBoxH}" rx="8" fill="${boxBg}" stroke="#ffc107" stroke-width="2.5"/>
+          <rect x="${dpX}" y="${dropY}" width="${dropBoxW}" height="24" rx="8" fill="#ffc107" fill-opacity="0.18"/>
+          <text x="${dpCenterX}" y="${dropY + 16}" text-anchor="middle" font-size="11" font-weight="bold" fill="#b45309">
+            DROPPED CORES
+          </text>
+          <text x="${dpCenterX}" y="${dropY + 44}" text-anchor="middle" font-size="13" font-weight="bold" fill="#198754">
+            ${dp.dropped_cores && dp.dropped_cores.length ? dp.dropped_cores.map(c => `Core ${c}`).join(', ') : 'None'}
+          </text>
+          <text x="${dpCenterX}" y="${dropY + 68}" text-anchor="middle" font-size="10" fill="${mutedText}">
+            ${dp.point_type || 'Site / Joint'}
+          </text>
         </g>
       `;
     });
   }
 
-  // Draw Main Horizontal Cable Bundle from Start to End
+  // 5. Draw Individual Cores & Connecting Lines
   const bundleStartX = startX + boxW;
   const bundleEndX = endX;
-  const coreSpacing = Math.min(18, 90 / (totalCores || 1));
-  const bundleBaseY = startY + 12;
+  const firstCoreY = startY + 44;
 
-  // Draw Individual Cores
-  const coreColors = ['#0d6efd', '#198754', '#d63384', '#fd7e14', '#6f42c1', '#20c997', '#ffc107', '#0dcaf0'];
+  const coreColors = [
+    '#2563eb', '#16a34a', '#dc2626', '#ea580c', '#9333ea', 
+    '#0891b2', '#d97706', '#059669', '#4f46e5', '#db2777', 
+    '#ca8a04', '#64748b'
+  ];
 
   for (let c = 1; c <= totalCores; c++) {
-    const cY = bundleBaseY + (c - 1) * coreSpacing;
+    const cY = firstCoreY + (c - 1) * coreSpacing;
     const color = coreColors[(c - 1) % coreColors.length];
+
+    // Draw Start Terminal Pin
+    svgContent += `
+      <g>
+        <circle cx="${bundleStartX}" cy="${cY}" r="5" fill="${color}" stroke="#ffffff" stroke-width="2" />
+        <text x="${bundleStartX - 10}" y="${cY + 4}" text-anchor="end" font-size="11" font-weight="bold" fill="${textColor}">
+          Pin ${c}
+        </text>
+      </g>
+    `;
 
     // Find if this core drops at any drop point
     let dropsAtPoint = null;
@@ -383,27 +496,49 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     if (!dropsAtPoint) {
-      // Goes straight to End Box
+      // Passes straight to End Site Box
+      const midX = (bundleStartX + bundleEndX) / 2;
       svgContent += `
         <g>
+          <!-- Horizontal Line -->
           <line x1="${bundleStartX}" y1="${cY}" x2="${bundleEndX}" y2="${cY}" stroke="${color}" stroke-width="2.5" />
-          <text x="${bundleStartX + 15}" y="${cY - 4}" font-size="10" font-weight="bold" fill="${color}">${c}</text>
-          <circle cx="${bundleEndX}" cy="${cY}" r="4" fill="${color}"/>
+          <!-- End Terminal Pin -->
+          <circle cx="${bundleEndX}" cy="${cY}" r="5" fill="${color}" stroke="#ffffff" stroke-width="2" />
+          <text x="${bundleEndX + 10}" y="${cY + 4}" text-anchor="start" font-size="11" font-weight="bold" fill="${textColor}">
+            Term ${c}
+          </text>
+          <!-- Center Badge -->
+          <rect x="${midX - 28}" y="${cY - 10}" width="56" height="20" rx="4" fill="${color}" stroke="#ffffff" stroke-width="1"/>
+          <text x="${midX}" y="${cY + 4}" text-anchor="middle" font-size="11" font-weight="bold" fill="#ffffff">
+            Core ${c}
+          </text>
         </g>
       `;
     } else {
-      // Drops at dropsAtPoint
+      // Drops into dropsAtPoint
       const pos = dropPositions[dropsAtPoint.id];
-      const dropTurnX = pos.x - 20 + ((c % 4) * 10);
+      const coreIdx = dropsAtPoint.dropped_cores.indexOf(c);
+      const turnX = pos.boxX + 35 + (coreIdx * 35);
+
       svgContent += `
         <g>
-          <!-- Horizontal path to drop turn -->
-          <line x1="${bundleStartX}" y1="${cY}" x2="${dropTurnX}" y2="${cY}" stroke="${color}" stroke-width="2.5" />
-          <text x="${bundleStartX + 15}" y="${cY - 4}" font-size="10" font-weight="bold" fill="${color}">${c}</text>
-          <!-- Branch down to drop site box -->
-          <path d="M ${dropTurnX} ${cY} Q ${dropTurnX} ${cY + 20} ${dropTurnX} ${pos.y}" fill="none" stroke="${color}" stroke-width="2.5" stroke-dasharray="0" />
-          <circle cx="${dropTurnX}" cy="${pos.y}" r="4" fill="${color}"/>
-          <text x="${dropTurnX + 5}" y="${(cY + pos.y) / 2}" font-size="10" font-weight="bold" fill="${color}">Core ${c}</text>
+          <!-- Horizontal Path from Start to Turn -->
+          <line x1="${bundleStartX}" y1="${cY}" x2="${turnX}" y2="${cY}" stroke="${color}" stroke-width="2.5" />
+          <!-- Branch Downwards into Drop Box -->
+          <path d="M ${turnX} ${cY} Q ${turnX} ${cY + 16} ${turnX} ${dropY}" fill="none" stroke="${color}" stroke-width="2.5" />
+          <circle cx="${turnX}" cy="${dropY}" r="4.5" fill="${color}" stroke="#ffffff" stroke-width="1.5"/>
+
+          <!-- Label on Horizontal Section -->
+          <rect x="${bundleStartX + 15 + ((c-1)%3)*15}" y="${cY - 10}" width="54" height="20" rx="4" fill="${color}" stroke="#ffffff" stroke-width="1"/>
+          <text x="${bundleStartX + 42 + ((c-1)%3)*15}" y="${cY + 4}" text-anchor="middle" font-size="11" font-weight="bold" fill="#ffffff">
+            Core ${c}
+          </text>
+
+          <!-- Label on Vertical Drop Section -->
+          <rect x="${turnX + 6}" y="${(cY + dropY) / 2 - 10}" width="58" height="20" rx="4" fill="${color}" stroke="#ffffff" stroke-width="1"/>
+          <text x="${turnX + 35}" y="${(cY + dropY) / 2 + 4}" text-anchor="middle" font-size="10" font-weight="bold" fill="#ffffff">
+            Core ${c} &#8595;
+          </text>
         </g>
       `;
     }

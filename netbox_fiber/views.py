@@ -83,25 +83,31 @@ class FiberRouteView(generic.ObjectView):
             {
                 'id': 'start',
                 'name': instance.start_point_display,
+                'point_name': 'Starting Point',
                 'type': 'start',
                 'km': 0,
+                'url': instance.start_site.get_absolute_url() if instance.start_site else None,
                 'dropped_cores': instance.parsed_start_cores,
             }
         ]
-        for dp in drop_points:
+        for idx, dp in enumerate(drop_points, start=1):
             schematic_nodes.append({
                 'id': f'dp_{dp.pk}',
                 'name': dp.site_display,
+                'point_name': f'Drop Point #{idx} ({dp.get_point_type_display()})',
                 'type': 'drop',
                 'point_type': dp.get_point_type_display(),
                 'km': float(dp.distance_km) if dp.distance_km else None,
+                'url': dp.site.get_absolute_url() if dp.site else dp.get_absolute_url(),
                 'dropped_cores': dp.parsed_dropped_cores,
             })
         schematic_nodes.append({
             'id': 'end',
             'name': instance.end_point_display,
+            'point_name': 'End Point',
             'type': 'end',
             'km': float(instance.total_length_km),
+            'url': instance.end_site.get_absolute_url() if instance.end_site else None,
             'dropped_cores': instance.parsed_end_cores,
         })
 

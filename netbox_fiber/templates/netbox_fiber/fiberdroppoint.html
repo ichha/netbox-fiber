@@ -32,7 +32,7 @@
           </tr>
           <tr>
             <th scope="row">Sequence along Route</th>
-            <td><span class="badge bg-secondary">#{{ object.sequence }}</span></td>
+            <td><span class="badge bg-secondary text-white">#{{ object.sequence }}</span></td>
           </tr>
           <tr>
             <th scope="row">Distance Marker (KM)</th>
@@ -55,7 +55,7 @@
           <label class="fw-bold text-success mb-1"><i class="mdi mdi-ray-vertex me-1"></i>Dropped Cores at this Location:</label>
           <div>
             {% for core in parsed_dropped_cores %}
-              <span class="badge bg-success fs-6 me-1">Core {{ core }}</span>
+              <span class="badge bg-success text-white fs-6 me-1">Core {{ core }}</span>
             {% empty %}
               <span class="text-muted">None specified</span>
             {% endfor %}

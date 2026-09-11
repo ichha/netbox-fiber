@@ -1,5 +1,6 @@
 from decimal import Decimal
-from django.db.models import Sum, Count
+from django.core.paginator import Paginator, EmptyPage, PageNotAnInteger
+from django.db.models import Sum, Count, Q
 from django.shortcuts import render, get_object_or_404, redirect
 from django.views import View
 from netbox.views import generic
@@ -14,6 +15,30 @@ from .tables import FiberVendorTable, FiberRouteTable, FiberDropPointTable
 from .filtersets import FiberVendorFilterSet, FiberRouteFilterSet, FiberDropPointFilterSet
 
 
+def get_paginated_data(queryset, request, default_per_page=25):
+    """
+    Helper function to paginate querysets consistently with NetBox standards.
+    Supports user-specified per_page (10, 25, 50, 100, 250, 500) and page numbers.
+    """
+    try:
+        per_page = int(request.GET.get('per_page', default_per_page))
+        if per_page not in [10, 25, 50, 100, 250, 500]:
+            per_page = default_per_page
+    except (ValueError, TypeError):
+        per_page = default_per_page
+
+    paginator = Paginator(queryset, per_page)
+    page_num = request.GET.get('page', 1)
+    try:
+        page_obj = paginator.page(page_num)
+    except PageNotAnInteger:
+        page_obj = paginator.page(1)
+    except EmptyPage:
+        page_obj = paginator.page(paginator.num_pages)
+
+    return page_obj, paginator, per_page
+
+
 # =====================================================================
 # Fiber Vendor Views
 # =====================================================================
@@ -26,6 +51,31 @@ class FiberVendorListView(generic.ObjectListView):
     filterset = FiberVendorFilterSet
     filterset_form = FiberVendorFilterForm
     template_name = 'netbox_fiber/fibervendor_list.html'
+
+    def get_extra_context(self, request):
+        try:
+            context = super().get_extra_context(request)
+        except (AttributeError, TypeError):
+            context = {}
+
+        qs = self.queryset.all()
+        if self.filterset:
+            try:
+                filter_obj = self.filterset(request.GET, queryset=qs)
+                if filter_obj.is_valid():
+                    qs = filter_obj.qs
+            except Exception:
+                qs = self.queryset.all()
+
+        page_obj, paginator, per_page = get_paginated_data(qs, request)
+
+        context.update({
+            'page_obj': page_obj,
+            'paginator': paginator,
+            'per_page': per_page,
+            'search_query': request.GET.get('q', '').strip(),
+        })
+        return context
 
 
 class FiberVendorView(generic.ObjectView):
@@ -93,16 +143,23 @@ class FiberRouteListView(generic.ObjectListView):
             except Exception:
                 qs = self.queryset.all()
 
+        page_obj, paginator, per_page = get_paginated_data(qs, request)
+
         route_cards = []
-        for r in qs:
+        for r in page_obj.object_list:
             ordered_dp = list(r.get_ordered_drop_points())
             route_cards.append({
                 'route': r,
                 'drop_points': ordered_dp,
             })
 
-        context['route_cards'] = route_cards
-        context['search_query'] = request.GET.get('q', '').strip()
+        context.update({
+            'route_cards': route_cards,
+            'page_obj': page_obj,
+            'paginator': paginator,
+            'per_page': per_page,
+            'search_query': request.GET.get('q', '').strip(),
+        })
         return context
 
 
@@ -154,6 +211,31 @@ class FiberDropPointListView(generic.ObjectListView):
     filterset_form = FiberDropPointFilterForm
     template_name = 'netbox_fiber/fiberdroppoint_list.html'
 
+    def get_extra_context(self, request):
+        try:
+            context = super().get_extra_context(request)
+        except (AttributeError, TypeError):
+            context = {}
+
+        qs = self.queryset.all()
+        if self.filterset:
+            try:
+                filter_obj = self.filterset(request.GET, queryset=qs)
+                if filter_obj.is_valid():
+                    qs = filter_obj.qs
+            except Exception:
+                qs = self.queryset.all()
+
+        page_obj, paginator, per_page = get_paginated_data(qs, request)
+
+        context.update({
+            'page_obj': page_obj,
+            'paginator': paginator,
+            'per_page': per_page,
+            'search_query': request.GET.get('q', '').strip(),
+        })
+        return context
+
 
 class FiberDropPointView(generic.ObjectView):
     queryset = FiberDropPoint.objects.all().select_related('fiber_route', 'site')
@@ -175,13 +257,13 @@ class FiberDropPointBulkImportView(generic.BulkImportView):
 
 
 # =====================================================================
-# Dedicated Vendor View (Page to view Fibers based on Vendor Selection)
+# Dedicated Vendor View (Vendor Fiber Explorer)
 # =====================================================================
 
 class VendorFiberView(View):
     """
     Dedicated view allowing users to select a vendor from a dropdown and view
-    all associated fiber routes and flow path.
+    all associated fiber routes, search by route/site name, and paginate results.
     """
     def get(self, request):
         vendors = FiberVendor.objects.all().order_by('name')
@@ -205,13 +287,30 @@ class VendorFiberView(View):
             routes = selected_vendor.fiber_routes.all().select_related('start_site', 'end_site').prefetch_related('drop_points')
 
         if selected_vendor:
-            total_km = routes.aggregate(total=Sum('total_length_km'))['total'] or Decimal('0.000')
-            total_cores = routes.aggregate(total=Sum('total_cores'))['total'] or 0
-            total_drop_points = FiberDropPoint.objects.filter(fiber_route__in=routes).count()
+            all_vendor_routes = selected_vendor.fiber_routes.all()
+            total_km = all_vendor_routes.aggregate(total=Sum('total_length_km'))['total'] or Decimal('0.000')
+            total_cores = all_vendor_routes.aggregate(total=Sum('total_cores'))['total'] or 0
+            total_drop_points = FiberDropPoint.objects.filter(fiber_route__in=all_vendor_routes).count()
 
-        # Build route breakdown cards data
+        # Search within vendor routes
+        search_query = request.GET.get('q', '').strip()
+        if search_query and routes.exists():
+            routes = routes.filter(
+                Q(name__icontains=search_query) |
+                Q(start_site__name__icontains=search_query) |
+                Q(start_site_name__icontains=search_query) |
+                Q(end_site__name__icontains=search_query) |
+                Q(end_site_name__icontains=search_query) |
+                Q(drop_points__name__icontains=search_query) |
+                Q(drop_points__site__name__icontains=search_query) |
+                Q(description__icontains=search_query)
+            ).distinct()
+
+        # Pagination for vendor explorer
+        page_obj, paginator, per_page = get_paginated_data(routes, request)
+
         route_cards = []
-        for r in routes:
+        for r in page_obj.object_list:
             ordered_dp = list(r.get_ordered_drop_points())
             route_cards.append({
                 'route': r,
@@ -223,9 +322,13 @@ class VendorFiberView(View):
             'selected_vendor': selected_vendor,
             'routes': routes,
             'route_cards': route_cards,
+            'page_obj': page_obj,
+            'paginator': paginator,
+            'per_page': per_page,
+            'search_query': search_query,
             'total_km': total_km,
             'total_cores': total_cores,
             'total_drop_points': total_drop_points,
-            'total_routes': routes.count(),
+            'total_routes': selected_vendor.fiber_routes.count() if selected_vendor else 0,
         }
         return render(request, 'netbox_fiber/vendor_view.html', context)

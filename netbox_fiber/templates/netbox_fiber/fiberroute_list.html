@@ -16,6 +16,9 @@
       <!-- Search Form (Server-Side GET + Instant Client-Side Real-Time Filter) -->
       <div class="col-12 col-md-6 col-lg-5">
         <form method="get" id="route-search-form" class="d-flex gap-2 m-0">
+          {% if per_page %}
+            <input type="hidden" name="per_page" value="{{ per_page }}" />
+          {% endif %}
           <div class="input-group">
             <span class="input-group-text bg-body-tertiary">
               <i class="mdi mdi-magnify text-muted"></i>
@@ -44,7 +47,7 @@
       <!-- Quick Stats & Active Filter Indicator -->
       <div class="col-12 col-md-3 col-lg-4 text-md-center">
         <div class="text-muted small">
-          Showing <strong id="visible-routes-count">{{ route_cards|length }}</strong> of {{ route_cards|length }} Fiber Routes
+          Showing <strong id="visible-routes-count">{{ route_cards|length }}</strong> on this page (<strong>{{ paginator.count }}</strong> total)
           {% if search_query %}
             <span class="badge bg-info-subtle text-info-emphasis ms-1">
               Search: "{{ search_query }}"
@@ -79,88 +82,96 @@
       <p class="small text-muted mb-0">Try searching for a different route name, starting site, intermediate station, or end site.</p>
     </div>
 
-    <div class="row g-3" id="route-cards-container">
-      {% for item in route_cards %}
-        <div class="col-12 route-card-item"
-             data-route-name="{{ item.route.name|lower }}"
-             data-start-site="{{ item.route.start_point_display|lower }}"
-             data-end-site="{{ item.route.end_point_display|lower }}"
-             data-drop-sites="{% for dp in item.drop_points %}{{ dp.site_display|lower }} {% endfor %}"
-             data-vendor="{{ item.route.vendor.name|default:''|lower }}">
-          <div class="card border rounded-3 p-3 shadow-sm bg-body">
-            <!-- Top Route Meta Row -->
-            <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-2">
-              <div class="d-flex align-items-center flex-wrap gap-2">
-                <a href="{{ item.route.get_absolute_url }}" class="fs-5 fw-bold text-decoration-none">
-                  {{ item.route.name }}
-                </a>
-                <span class="badge bg-secondary text-white">{{ item.route.get_cable_type_display }}</span>
-                <span class="badge {% if item.route.status == 'active' %}bg-success text-white{% elif item.route.status == 'planned' %}bg-info text-dark{% else %}bg-warning text-dark{% endif %}">
-                  {{ item.route.get_status_display }}
-                </span>
-                {% if item.route.vendor %}
-                  <span class="badge bg-light text-dark border">
-                    <i class="mdi mdi-domain me-1"></i>{{ item.route.vendor.name }}
-                  </span>
-                {% endif %}
-              </div>
-              <div class="d-flex align-items-center gap-2">
-                <span class="badge bg-primary text-white fs-6">{{ item.route.total_cores }} Cores</span>
-                <span class="badge bg-dark text-white fs-6">{{ item.route.total_length_km }} KM</span>
-                <a href="{{ item.route.get_absolute_url }}" class="btn btn-sm btn-outline-primary ms-1">
-                  <i class="mdi mdi-eye me-1"></i>View Route &amp; Drops
-                </a>
-                <a href="{% url 'plugins:netbox_fiber:fiberroute_edit' pk=item.route.pk %}" class="btn btn-sm btn-outline-secondary" title="Edit Route">
-                  <i class="mdi mdi-pencil"></i>
-                </a>
-              </div>
-            </div>
-
-            <!-- Route Path Flow (Start -> Intermediate Stations -> End) -->
-            <div class="p-3 bg-body-tertiary rounded-2 mt-2">
-              <div class="text-muted small fw-bold mb-2 text-uppercase" style="letter-spacing: 0.5px;">
-                <i class="mdi mdi-source-branch me-1 text-primary"></i>Route Stations &amp; Flow Path:
-              </div>
-              <div class="d-flex flex-wrap align-items-center gap-2">
-                <!-- Starting Station -->
-                <div class="border border-success rounded px-3 py-2 bg-body shadow-sm">
-                  <div class="fw-bold text-success small">
-                    <i class="mdi mdi-ray-start me-1"></i>{{ item.route.start_point_display }} (Start)
+    <div class="card shadow-sm border-0 mb-3">
+      <div class="card-body p-3">
+        <div class="row g-3" id="route-cards-container">
+          {% for item in route_cards %}
+            <div class="col-12 route-card-item"
+                 data-route-name="{{ item.route.name|lower }}"
+                 data-start-site="{{ item.route.start_point_display|lower }}"
+                 data-end-site="{{ item.route.end_point_display|lower }}"
+                 data-drop-sites="{% for dp in item.drop_points %}{{ dp.site_display|lower }} {% endfor %}"
+                 data-vendor="{{ item.route.vendor.name|default:''|lower }}">
+              <div class="card border rounded-3 p-3 shadow-sm bg-body">
+                <!-- Top Route Meta Row -->
+                <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-2">
+                  <div class="d-flex align-items-center flex-wrap gap-2">
+                    <a href="{{ item.route.get_absolute_url }}" class="fs-5 fw-bold text-decoration-none">
+                      {{ item.route.name }}
+                    </a>
+                    <span class="badge bg-secondary text-white">{{ item.route.get_cable_type_display }}</span>
+                    <span class="badge {% if item.route.status == 'active' %}bg-success text-white{% elif item.route.status == 'planned' %}bg-info text-dark{% else %}bg-warning text-dark{% endif %}">
+                      {{ item.route.get_status_display }}
+                    </span>
+                    {% if item.route.vendor %}
+                      <span class="badge bg-light text-dark border">
+                        <i class="mdi mdi-domain me-1"></i>{{ item.route.vendor.name }}
+                      </span>
+                    {% endif %}
+                  </div>
+                  <div class="d-flex align-items-center gap-2">
+                    <span class="badge bg-primary text-white fs-6">{{ item.route.total_cores }} Cores</span>
+                    <span class="badge bg-dark text-white fs-6">{{ item.route.total_length_km }} KM</span>
+                    <a href="{{ item.route.get_absolute_url }}" class="btn btn-sm btn-outline-primary ms-1">
+                      <i class="mdi mdi-eye me-1"></i>View Route &amp; Drops
+                    </a>
+                    <a href="{% url 'plugins:netbox_fiber:fiberroute_edit' pk=item.route.pk %}" class="btn btn-sm btn-outline-secondary" title="Edit Route">
+                      <i class="mdi mdi-pencil"></i>
+                    </a>
                   </div>
                 </div>
 
-                <!-- Intermediate Stations / Points -->
-                {% for dp in item.drop_points %}
-                  <div class="text-muted"><i class="mdi mdi-arrow-right-bold"></i></div>
-                  <div class="border border-warning rounded px-3 py-2 bg-body shadow-sm">
-                    <div class="fw-bold text-warning-emphasis small">
-                      <i class="mdi mdi-map-marker-outline me-1"></i>{{ dp.site_display }}
-                      {% if dp.distance_km %}
-                        <span class="badge bg-secondary-subtle text-secondary small ms-1">{{ dp.distance_km }} KM</span>
-                      {% endif %}
+                <!-- Route Path Flow (Start -> Intermediate Stations -> End) -->
+                <div class="p-3 bg-body-tertiary rounded-2 mt-2">
+                  <div class="text-muted small fw-bold mb-2 text-uppercase" style="letter-spacing: 0.5px;">
+                    <i class="mdi mdi-source-branch me-1 text-primary"></i>Route Stations &amp; Flow Path:
+                  </div>
+                  <div class="d-flex flex-wrap align-items-center gap-2">
+                    <!-- Starting Station -->
+                    <div class="border border-success rounded px-3 py-2 bg-body shadow-sm">
+                      <div class="fw-bold text-success small">
+                        <i class="mdi mdi-ray-start me-1"></i>{{ item.route.start_point_display }} (Start)
+                      </div>
+                    </div>
+
+                    <!-- Intermediate Stations / Points -->
+                    {% for dp in item.drop_points %}
+                      <div class="text-muted"><i class="mdi mdi-arrow-right-bold"></i></div>
+                      <div class="border border-warning rounded px-3 py-2 bg-body shadow-sm">
+                        <div class="fw-bold text-warning-emphasis small">
+                          <i class="mdi mdi-map-marker-outline me-1"></i>{{ dp.site_display }}
+                          {% if dp.distance_km %}
+                            <span class="badge bg-secondary-subtle text-secondary small ms-1">{{ dp.distance_km }} KM</span>
+                          {% endif %}
+                        </div>
+                      </div>
+                    {% empty %}
+                      <div class="text-muted"><i class="mdi mdi-arrow-right-bold"></i></div>
+                      <span class="badge bg-light text-muted border px-2 py-1">Direct Route (No Intermediate Stations)</span>
+                    {% endfor %}
+
+                    <!-- End Station -->
+                    <div class="text-muted"><i class="mdi mdi-arrow-right-bold"></i></div>
+                    <div class="border border-primary rounded px-3 py-2 bg-body shadow-sm">
+                      <div class="fw-bold text-primary small">
+                        <i class="mdi mdi-ray-end me-1"></i>{{ item.route.end_point_display }} (End)
+                      </div>
                     </div>
                   </div>
-                {% empty %}
-                  <div class="text-muted"><i class="mdi mdi-arrow-right-bold"></i></div>
-                  <span class="badge bg-light text-muted border px-2 py-1">Direct Route (No Intermediate Stations)</span>
-                {% endfor %}
-
-                <!-- End Station -->
-                <div class="text-muted"><i class="mdi mdi-arrow-right-bold"></i></div>
-                <div class="border border-primary rounded px-3 py-2 bg-body shadow-sm">
-                  <div class="fw-bold text-primary small">
-                    <i class="mdi mdi-ray-end me-1"></i>{{ item.route.end_point_display }} (End)
-                  </div>
                 </div>
+
               </div>
             </div>
-
-          </div>
+          {% endfor %}
         </div>
-      {% endfor %}
+      </div>
+
+      <!-- Pagination Footer on Card Flow View -->
+      {% include 'netbox_fiber/inc/paginator.html' with title="fiber routes" %}
     </div>
+
   {% else %}
-    <div class="card p-5 text-center text-muted">
+    <div class="card p-5 text-center text-muted shadow-sm border-0">
       <i class="mdi mdi-ray-vertex-off fs-1 text-secondary mb-2"></i>
       <h5>No Fiber Routes Found</h5>
       {% if search_query %}
@@ -187,10 +198,12 @@
 
 <!-- 2. Standard NetBox Table View (Hidden by default, toggleable) -->
 <div id="route-table-view" style="display: none;">
-  <div class="card">
-    <div class="card-body table-responsive">
+  <div class="card shadow-sm border-0">
+    <div class="card-body table-responsive p-0">
       {% render_table table %}
     </div>
+    <!-- Pagination Footer on Table View -->
+    {% include 'netbox_fiber/inc/paginator.html' with title="fiber routes" %}
   </div>
 </div>
 

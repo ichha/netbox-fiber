@@ -13,13 +13,16 @@
         <i class="mdi mdi-domain me-2 text-primary"></i>Vendor Fiber Explorer
       </h3>
       <p class="text-muted small mb-0">
-        Browse optical fiber cables, drop points, and core allocations organized by fiber vendor.
+        Browse optical fiber cables, drop points, and flow paths organized by fiber vendor.
       </p>
     </div>
 
     <!-- Vendor Dropdown Selection -->
     <div class="d-flex align-items-center gap-2">
       <form method="get" class="d-flex align-items-center gap-2 m-0">
+        {% if search_query %}
+          <input type="hidden" name="q" value="{{ search_query }}" />
+        {% endif %}
         <label for="vendor_select" class="fw-semibold text-nowrap mb-0 small">
           <i class="mdi mdi-filter-variant me-1"></i>Select Vendor:
         </label>
@@ -97,7 +100,7 @@
             <div class="row text-center g-2">
               <div class="col-6 mb-2">
                 <div class="fs-3 fw-bold text-primary">{{ total_routes }}</div>
-                <div class="small text-muted">Fiber Routes</div>
+                <div class="small text-muted">Total Routes</div>
               </div>
               <div class="col-6 mb-2">
                 <div class="fs-3 fw-bold text-success">{{ total_km }}</div>
@@ -117,21 +120,77 @@
       </div>
     </div>
 
+    <!-- Search in Vendor Explorer Bar -->
+    <div class="card shadow-sm border-0 mb-3 bg-body">
+      <div class="card-body p-3">
+        <form method="get" class="row g-2 align-items-center justify-content-between m-0">
+          <input type="hidden" name="vendor_id" value="{{ selected_vendor.pk }}" />
+          <div class="col-12 col-md-6 col-lg-5">
+            <div class="input-group input-group-sm">
+              <span class="input-group-text bg-body-tertiary">
+                <i class="mdi mdi-magnify text-muted"></i>
+              </span>
+              <input 
+                type="text" 
+                name="q" 
+                id="vendor-route-search" 
+                class="form-control" 
+                placeholder="Search route name or site name for {{ selected_vendor.name }}..." 
+                value="{{ search_query }}"
+                autocomplete="off"
+              >
+              {% if search_query %}
+                <a href="?vendor_id={{ selected_vendor.pk }}" class="btn btn-outline-secondary" title="Clear Search">
+                  <i class="mdi mdi-close"></i>
+                </a>
+              {% endif %}
+              <button type="submit" class="btn btn-primary">
+                Search
+              </button>
+            </div>
+          </div>
+
+          <div class="col-12 col-md-6 col-lg-5 text-md-end">
+            <span class="text-muted small">
+              Showing <strong id="vendor-visible-count">{{ route_cards|length }}</strong> of {{ paginator.count }} routes
+              {% if search_query %}
+                <span class="badge bg-info-subtle text-info-emphasis ms-1">
+                  Search: "{{ search_query }}"
+                  <a href="?vendor_id={{ selected_vendor.pk }}" class="text-decoration-none ms-1">&times;</a>
+                </span>
+              {% endif %}
+            </span>
+          </div>
+        </form>
+      </div>
+    </div>
+
     <!-- Fiber Routes Section -->
     <div class="card shadow-sm border-0 mb-4">
       <div class="card-header bg-body-tertiary d-flex justify-content-between align-items-center py-2">
         <h5 class="mb-0 fw-bold">
-          <i class="mdi mdi-ray-vertex me-1 text-primary"></i>Fiber Routes for {{ selected_vendor.name }} ({{ routes.count }})
+          <i class="mdi mdi-ray-vertex me-1 text-primary"></i>Fiber Routes for {{ selected_vendor.name }}
         </h5>
         <a href="{% url 'plugins:netbox_fiber:fiberroute_add' %}?vendor={{ selected_vendor.pk }}" class="btn btn-sm btn-primary">
           <i class="mdi mdi-plus-thick me-1"></i>Add Route
         </a>
       </div>
       <div class="card-body p-3">
+        <!-- Live Search No-Results Notice -->
+        <div id="vendor-no-search-results" class="card p-4 text-center text-muted border-0 shadow-sm mb-3" style="display: none;">
+          <i class="mdi mdi-magnify-remove-outline fs-2 text-secondary mb-2"></i>
+          <h6 class="fw-bold">No Routes Match Your Search</h6>
+          <p class="small text-muted mb-0">Try searching for a different route name or station name.</p>
+        </div>
+
         {% if route_cards %}
-          <div class="row g-3">
+          <div class="row g-3" id="vendor-routes-container">
             {% for item in route_cards %}
-              <div class="col-12">
+              <div class="col-12 vendor-route-card"
+                   data-route-name="{{ item.route.name|lower }}"
+                   data-start-site="{{ item.route.start_point_display|lower }}"
+                   data-end-site="{{ item.route.end_point_display|lower }}"
+                   data-drop-sites="{% for dp in item.drop_points %}{{ dp.site_display|lower }} {% endfor %}">
                 <div class="card border rounded-3 p-3 hover-shadow bg-body">
                   <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-2">
                     <div>
@@ -199,14 +258,24 @@
         {% else %}
           <div class="text-center py-5 text-muted">
             <i class="mdi mdi-ray-vertex-off fs-2 d-block mb-2 text-secondary"></i>
-            <h5>No Fiber Routes Configured for {{ selected_vendor.name }}</h5>
-            <p class="small text-muted">Add your first fiber cable route for this vendor to track cores and drop points.</p>
-            <a href="{% url 'plugins:netbox_fiber:fiberroute_add' %}?vendor={{ selected_vendor.pk }}" class="btn btn-primary btn-sm">
-              <i class="mdi mdi-plus-thick me-1"></i>Add Route Now
-            </a>
+            {% if search_query %}
+              <h5>No Routes Match "{{ search_query }}" for {{ selected_vendor.name }}</h5>
+              <a href="?vendor_id={{ selected_vendor.pk }}" class="btn btn-sm btn-outline-secondary mt-2">
+                <i class="mdi mdi-close me-1"></i>Clear Search
+              </a>
+            {% else %}
+              <h5>No Fiber Routes Configured for {{ selected_vendor.name }}</h5>
+              <p class="small text-muted">Add your first fiber cable route for this vendor to track cores and drop points.</p>
+              <a href="{% url 'plugins:netbox_fiber:fiberroute_add' %}?vendor={{ selected_vendor.pk }}" class="btn btn-primary btn-sm">
+                <i class="mdi mdi-plus-thick me-1"></i>Add Route Now
+              </a>
+            {% endif %}
           </div>
         {% endif %}
       </div>
+
+      <!-- Pagination Footer -->
+      {% include 'netbox_fiber/inc/paginator.html' with title="fiber routes" %}
     </div>
 
   {% else %}
@@ -224,4 +293,48 @@
   {% endif %}
 
 </div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+  const searchInput = document.getElementById('vendor-route-search');
+  const cards = document.querySelectorAll('.vendor-route-card');
+  const visibleCountEl = document.getElementById('vendor-visible-count');
+  const totalCount = cards.length;
+  const noResultsMsg = document.getElementById('vendor-no-search-results');
+
+  if (searchInput && cards.length > 0) {
+    searchInput.addEventListener('input', function() {
+      const q = this.value.trim().toLowerCase();
+      let count = 0;
+
+      cards.forEach(card => {
+        const routeName = card.getAttribute('data-route-name') || '';
+        const startSite = card.getAttribute('data-start-site') || '';
+        const endSite = card.getAttribute('data-end-site') || '';
+        const dropSites = card.getAttribute('data-drop-sites') || '';
+
+        const match = !q || 
+                      routeName.includes(q) || 
+                      startSite.includes(q) || 
+                      endSite.includes(q) || 
+                      dropSites.includes(q);
+
+        if (match) {
+          card.style.display = '';
+          count++;
+        } else {
+          card.style.display = 'none';
+        }
+      });
+
+      if (visibleCountEl) {
+        visibleCountEl.textContent = count;
+      }
+      if (noResultsMsg) {
+        noResultsMsg.style.display = (count === 0 && totalCount > 0) ? 'block' : 'none';
+      }
+    });
+  }
+});
+</script>
 {% endblock %}

@@ -1,7 +1,18 @@
 {% extends 'generic/object_list.html' %}
+{% load helpers %}
+{% load render_table from django_tables2 %}
 
 {% block extra_controls %}
   <a href="{% url 'plugins:netbox_fiber:fibervendor_import' %}" class="btn btn-sm btn-outline-primary">
     <i class="mdi mdi-upload me-1"></i>Import Vendors
   </a>
+{% endblock %}
+
+{% block content %}
+  <div class="card border-0 shadow-sm">
+    <div class="card-body table-responsive p-0">
+      {% render_table table %}
+    </div>
+    {% include 'netbox_fiber/inc/paginator.html' with title="fiber vendors" %}
+  </div>
 {% endblock %}

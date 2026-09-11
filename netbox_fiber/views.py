@@ -33,17 +33,24 @@ class FiberVendorView(generic.ObjectView):
     template_name = 'netbox_fiber/fibervendor.html'
 
     def get_extra_context(self, request, instance):
+        try:
+            context = super().get_extra_context(request, instance)
+        except (AttributeError, TypeError):
+            context = {}
+
         routes = instance.fiber_routes.all()
         total_km = routes.aggregate(total=Sum('total_length_km'))['total'] or Decimal('0.000')
         total_cores = routes.aggregate(total=Sum('total_cores'))['total'] or 0
         route_table = FiberRouteTable(routes)
         route_table.configure(request)
-        return {
+
+        context.update({
             'routes': routes,
             'total_km': total_km,
             'total_cores': total_cores,
             'route_table': route_table,
-        }
+        })
+        return context
 
 
 class FiberVendorEditView(generic.ObjectEditView):
@@ -72,21 +79,30 @@ class FiberRouteListView(generic.ObjectListView):
     template_name = 'netbox_fiber/fiberroute_list.html'
 
     def get_extra_context(self, request):
-        routes = self.queryset
-        if hasattr(self, 'filterset') and self.filterset is not None:
-            routes = self.filterset.qs
+        try:
+            context = super().get_extra_context(request)
+        except (AttributeError, TypeError):
+            context = {}
+
+        qs = self.queryset.all()
+        if self.filterset:
+            try:
+                filter_obj = self.filterset(request.GET, queryset=qs)
+                if filter_obj.is_valid():
+                    qs = filter_obj.qs
+            except Exception:
+                qs = self.queryset.all()
 
         route_cards = []
-        for r in routes:
+        for r in qs:
             ordered_dp = list(r.get_ordered_drop_points())
             route_cards.append({
                 'route': r,
                 'drop_points': ordered_dp,
             })
 
-        return {
-            'route_cards': route_cards,
-        }
+        context['route_cards'] = route_cards
+        return context
 
 
 class FiberRouteView(generic.ObjectView):
@@ -94,14 +110,22 @@ class FiberRouteView(generic.ObjectView):
     template_name = 'netbox_fiber/fiberroute.html'
 
     def get_extra_context(self, request, instance):
+        try:
+            context = super().get_extra_context(request, instance)
+        except (AttributeError, TypeError):
+            context = {}
+
         drop_points = list(instance.get_ordered_drop_points())
         all_points = list(instance.get_all_points())
+        drop_points_table = FiberDropPointTable(all_points)
+        drop_points_table.configure(request)
 
-        return {
+        context.update({
             'drop_points': drop_points,
             'all_points': all_points,
-            'drop_points_table': FiberDropPointTable(all_points),
-        }
+            'drop_points_table': drop_points_table,
+        })
+        return context
 
 
 class FiberRouteEditView(generic.ObjectEditView):

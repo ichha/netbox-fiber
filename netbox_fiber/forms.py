@@ -171,6 +171,10 @@ class FiberVendorFilterForm(NetBoxModelFilterSetForm):
 
 class FiberRouteFilterForm(NetBoxModelFilterSetForm):
     model = FiberRoute
+    q = forms.CharField(
+        required=False,
+        label='Search'
+    )
     vendor = DynamicModelChoiceField(
         queryset=FiberVendor.objects.all(),
         required=False

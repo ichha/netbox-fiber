@@ -102,6 +102,7 @@ class FiberRouteListView(generic.ObjectListView):
             })
 
         context['route_cards'] = route_cards
+        context['search_query'] = request.GET.get('q', '').strip()
         return context
 
 

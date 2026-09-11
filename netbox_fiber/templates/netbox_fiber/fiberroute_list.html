@@ -9,27 +9,84 @@
 {% endblock %}
 
 {% block content %}
-<!-- View Switcher & Quick Stats Bar -->
-<div class="d-flex flex-wrap justify-content-between align-items-center mb-3 gap-2">
-  <div class="text-muted small">
-    Showing <strong>{{ route_cards|length }}</strong> Fiber Routes
-  </div>
-  <div class="btn-group btn-group-sm" role="group" id="view-mode-toggle">
-    <button type="button" class="btn btn-primary active" id="btn-show-cards" onclick="toggleRouteView('cards')">
-      <i class="mdi mdi-view-agenda-outline me-1"></i>Card Flow View
-    </button>
-    <button type="button" class="btn btn-outline-primary" id="btn-show-table" onclick="toggleRouteView('table')">
-      <i class="mdi mdi-table me-1"></i>Table View
-    </button>
+<!-- Search & Filter Controls Bar -->
+<div class="card shadow-sm border-0 mb-3 bg-body">
+  <div class="card-body p-3">
+    <div class="row g-2 align-items-center justify-content-between">
+      <!-- Search Form (Server-Side GET + Instant Client-Side Real-Time Filter) -->
+      <div class="col-12 col-md-6 col-lg-5">
+        <form method="get" id="route-search-form" class="d-flex gap-2 m-0">
+          <div class="input-group">
+            <span class="input-group-text bg-body-tertiary">
+              <i class="mdi mdi-magnify text-muted"></i>
+            </span>
+            <input 
+              type="text" 
+              name="q" 
+              id="route-search-input" 
+              class="form-control" 
+              placeholder="Search Route name or Site / Station name..." 
+              value="{{ search_query }}"
+              autocomplete="off"
+            >
+            {% if search_query %}
+              <a href="{% url 'plugins:netbox_fiber:fiberroute_list' %}" class="btn btn-outline-secondary" title="Clear Search">
+                <i class="mdi mdi-close"></i>
+              </a>
+            {% endif %}
+            <button type="submit" class="btn btn-primary">
+              Search
+            </button>
+          </div>
+        </form>
+      </div>
+
+      <!-- Quick Stats & Active Filter Indicator -->
+      <div class="col-12 col-md-3 col-lg-4 text-md-center">
+        <div class="text-muted small">
+          Showing <strong id="visible-routes-count">{{ route_cards|length }}</strong> of {{ route_cards|length }} Fiber Routes
+          {% if search_query %}
+            <span class="badge bg-info-subtle text-info-emphasis ms-1">
+              Search: "{{ search_query }}"
+              <a href="{% url 'plugins:netbox_fiber:fiberroute_list' %}" class="text-decoration-none ms-1">&times;</a>
+            </span>
+          {% endif %}
+        </div>
+      </div>
+
+      <!-- Right: View Switcher (Cards / Table) -->
+      <div class="col-12 col-md-3 col-lg-3 d-flex justify-content-md-end">
+        <div class="btn-group btn-group-sm" role="group" id="view-mode-toggle">
+          <button type="button" class="btn btn-primary active" id="btn-show-cards" onclick="toggleRouteView('cards')">
+            <i class="mdi mdi-view-agenda-outline me-1"></i>Cards
+          </button>
+          <button type="button" class="btn btn-outline-primary" id="btn-show-table" onclick="toggleRouteView('table')">
+            <i class="mdi mdi-table me-1"></i>Table
+          </button>
+        </div>
+      </div>
+    </div>
   </div>
 </div>
 
 <!-- 1. Route Cards Flow View (Exact View from Attachment) -->
 <div id="route-cards-view">
   {% if route_cards %}
-    <div class="row g-3">
+    <!-- Live Search No-Results Notice -->
+    <div id="no-search-results" class="card p-4 text-center text-muted border-0 shadow-sm mb-3" style="display: none;">
+      <i class="mdi mdi-magnify-remove-outline fs-2 text-secondary mb-2"></i>
+      <h6 class="fw-bold">No Routes Match Your Search</h6>
+      <p class="small text-muted mb-0">Try searching for a different route name, starting site, intermediate station, or end site.</p>
+    </div>
+
+    <div class="row g-3" id="route-cards-container">
       {% for item in route_cards %}
-        <div class="col-12">
+        <div class="col-12 route-card-item"
+             data-route-name="{{ item.route.name|lower }}"
+             data-start-site="{{ item.route.start_point_display|lower }}"
+             data-end-site="{{ item.route.end_point_display|lower }}"
+             data-drop-sites="{% for dp in item.drop_points %}{{ dp.site_display|lower }} {% endfor %}"
+             data-vendor="{{ item.route.vendor.name|default:''|lower }}">
           <div class="card border rounded-3 p-3 shadow-sm bg-body">
             <!-- Top Route Meta Row -->
             <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-2">
@@ -62,7 +119,7 @@
             <!-- Route Path Flow (Start -> Intermediate Stations -> End) -->
             <div class="p-3 bg-body-tertiary rounded-2 mt-2">
               <div class="text-muted small fw-bold mb-2 text-uppercase" style="letter-spacing: 0.5px;">
-                <i class="mdi mdi-source-branch me-1 text-primary"></i>Route Drop Points &amp; Core Allocations:
+                <i class="mdi mdi-source-branch me-1 text-primary"></i>Route Stations &amp; Flow Path:
               </div>
               <div class="d-flex flex-wrap align-items-center gap-2">
                 <!-- Starting Station -->
@@ -106,15 +163,24 @@
     <div class="card p-5 text-center text-muted">
       <i class="mdi mdi-ray-vertex-off fs-1 text-secondary mb-2"></i>
       <h5>No Fiber Routes Found</h5>
-      <p class="small text-muted mb-3">Get started by adding or importing fiber routes.</p>
-      <div class="d-flex justify-content-center gap-2">
-        <a href="{% url 'plugins:netbox_fiber:fiberroute_add' %}" class="btn btn-sm btn-primary">
-          <i class="mdi mdi-plus-thick me-1"></i>Add Route
-        </a>
-        <a href="{% url 'plugins:netbox_fiber:fiberroute_import' %}" class="btn btn-sm btn-outline-primary">
-          <i class="mdi mdi-upload me-1"></i>Import Routes
-        </a>
-      </div>
+      {% if search_query %}
+        <p class="small text-muted mb-3">No routes match the search query "<strong>{{ search_query }}</strong>".</p>
+        <div>
+          <a href="{% url 'plugins:netbox_fiber:fiberroute_list' %}" class="btn btn-sm btn-outline-secondary me-2">
+            <i class="mdi mdi-close me-1"></i>Clear Search
+          </a>
+        </div>
+      {% else %}
+        <p class="small text-muted mb-3">Get started by adding or importing fiber routes.</p>
+        <div class="d-flex justify-content-center gap-2">
+          <a href="{% url 'plugins:netbox_fiber:fiberroute_add' %}" class="btn btn-sm btn-primary">
+            <i class="mdi mdi-plus-thick me-1"></i>Add Route
+          </a>
+          <a href="{% url 'plugins:netbox_fiber:fiberroute_import' %}" class="btn btn-sm btn-outline-primary">
+            <i class="mdi mdi-upload me-1"></i>Import Routes
+          </a>
+        </div>
+      {% endif %}
     </div>
   {% endif %}
 </div>
@@ -159,6 +225,49 @@ document.addEventListener('DOMContentLoaded', function() {
   const pref = localStorage.getItem('netbox_fiber_route_view');
   if (pref === 'table') {
     toggleRouteView('table');
+  }
+
+  // Instant real-time card search filter
+  const searchInput = document.getElementById('route-search-input');
+  const routeCards = document.querySelectorAll('.route-card-item');
+  const visibleCountEl = document.getElementById('visible-routes-count');
+  const totalCount = routeCards.length;
+  const noResultsMsg = document.getElementById('no-search-results');
+
+  if (searchInput && routeCards.length > 0) {
+    searchInput.addEventListener('input', function() {
+      const q = this.value.trim().toLowerCase();
+      let count = 0;
+
+      routeCards.forEach(card => {
+        const routeName = card.getAttribute('data-route-name') || '';
+        const startSite = card.getAttribute('data-start-site') || '';
+        const endSite = card.getAttribute('data-end-site') || '';
+        const dropSites = card.getAttribute('data-drop-sites') || '';
+        const vendor = card.getAttribute('data-vendor') || '';
+
+        const match = !q || 
+                      routeName.includes(q) || 
+                      startSite.includes(q) || 
+                      endSite.includes(q) || 
+                      dropSites.includes(q) || 
+                      vendor.includes(q);
+
+        if (match) {
+          card.style.display = '';
+          count++;
+        } else {
+          card.style.display = 'none';
+        }
+      });
+
+      if (visibleCountEl) {
+        visibleCountEl.textContent = count;
+      }
+      if (noResultsMsg) {
+        noResultsMsg.style.display = (count === 0 && totalCount > 0) ? 'block' : 'none';
+      }
+    });
   }
 });
 </script>

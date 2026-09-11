@@ -223,11 +223,8 @@ class FiberRoute(NetBoxModel):
         return parse_core_string(self.end_cores_dropped)
 
     def get_ordered_drop_points(self):
-        # Return intermediate drop points (excluding start and end points if specified)
-        intermediate = self.drop_points.exclude(point_type__in=['start', 'end']).order_by('sequence', 'id')
-        if intermediate.exists():
-            return intermediate
-        return self.drop_points.all().order_by('sequence', 'id')
+        # Return intermediate drop points only (excluding start and end points)
+        return self.drop_points.exclude(point_type__in=['start', 'end']).order_by('sequence', 'id')
 
     def get_all_points(self):
         return self.drop_points.all().order_by('sequence', 'id')

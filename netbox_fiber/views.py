@@ -52,31 +52,6 @@ class FiberVendorListView(generic.ObjectListView):
     filterset_form = FiberVendorFilterForm
     template_name = 'netbox_fiber/fibervendor_list.html'
 
-    def get_extra_context(self, request):
-        try:
-            context = super().get_extra_context(request)
-        except (AttributeError, TypeError):
-            context = {}
-
-        qs = self.queryset.all()
-        if self.filterset:
-            try:
-                filter_obj = self.filterset(request.GET, queryset=qs)
-                if filter_obj.is_valid():
-                    qs = filter_obj.qs
-            except Exception:
-                qs = self.queryset.all()
-
-        page_obj, paginator, per_page = get_paginated_data(qs, request)
-
-        context.update({
-            'page_obj': page_obj,
-            'paginator': paginator,
-            'per_page': per_page,
-            'search_query': request.GET.get('q', '').strip(),
-        })
-        return context
-
 
 class FiberVendorView(generic.ObjectView):
     queryset = FiberVendor.objects.all()
@@ -210,31 +185,6 @@ class FiberDropPointListView(generic.ObjectListView):
     filterset = FiberDropPointFilterSet
     filterset_form = FiberDropPointFilterForm
     template_name = 'netbox_fiber/fiberdroppoint_list.html'
-
-    def get_extra_context(self, request):
-        try:
-            context = super().get_extra_context(request)
-        except (AttributeError, TypeError):
-            context = {}
-
-        qs = self.queryset.all()
-        if self.filterset:
-            try:
-                filter_obj = self.filterset(request.GET, queryset=qs)
-                if filter_obj.is_valid():
-                    qs = filter_obj.qs
-            except Exception:
-                qs = self.queryset.all()
-
-        page_obj, paginator, per_page = get_paginated_data(qs, request)
-
-        context.update({
-            'page_obj': page_obj,
-            'paginator': paginator,
-            'per_page': per_page,
-            'search_query': request.GET.get('q', '').strip(),
-        })
-        return context
 
 
 class FiberDropPointView(generic.ObjectView):

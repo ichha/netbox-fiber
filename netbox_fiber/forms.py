@@ -52,6 +52,15 @@ class FiberRouteForm(NetBoxModelForm):
         )
 
 
+try:
+    from netbox.forms import NetBoxModelImportForm
+except ImportError:
+    try:
+        from netbox.forms import NetBoxModelCSVForm as NetBoxModelImportForm
+    except ImportError:
+        from utilities.forms import CSVModelForm as NetBoxModelImportForm
+
+
 class FiberDropPointForm(NetBoxModelForm):
     fiber_route = DynamicModelChoiceField(
         queryset=FiberRoute.objects.all(),
@@ -68,28 +77,20 @@ class FiberDropPointForm(NetBoxModelForm):
         initial='drop',
         required=True,
         label='Point Type',
-        help_text='Designate whether this is a Starting Point, Intermediate Drop, or End Point'
-    )
-    dropped_cores = forms.CharField(
-        max_length=255,
-        required=False,
-        label='Dropped Cores',
-        help_text="Cores dropped / spliced at this point (e.g. '3, 4' or '3-4')"
+        help_text='Designate whether this is a Starting Point, Intermediate Station/Joint, or End Point'
     )
 
     class Meta:
         model = FiberDropPoint
         fields = (
-            'fiber_route', 'site', 'name', 'point_type', 'sequence',
-            'distance_km', 'dropped_cores', 'passed_cores',
-            'description', 'comments', 'tags',
+            'fiber_route', 'site', 'name', 'point_type',
+            'distance_km', 'description', 'comments', 'tags',
         )
 
     if FieldSet:
         fieldsets = (
             FieldSet('fiber_route', 'site', 'name', 'point_type', 'tags', name='Route & Location'),
-            FieldSet('sequence', 'distance_km', name='Sequence & Position'),
-            FieldSet('dropped_cores', 'passed_cores', name='Core Drop Allocation'),
+            FieldSet('distance_km', name='Position'),
             FieldSet('description', 'comments', name='Notes'),
         )
 
@@ -101,8 +102,6 @@ class FiberDropPointForm(NetBoxModelForm):
 
         fiber_route = cleaned_data.get('fiber_route')
         point_type = cleaned_data.get('point_type')
-        dropped_cores_str = cleaned_data.get('dropped_cores')
-        passed_cores_str = cleaned_data.get('passed_cores')
 
         # Check uniqueness of Starting and End points on the route
         if fiber_route and point_type in ['start', 'end']:
@@ -119,84 +118,47 @@ class FiberDropPointForm(NetBoxModelForm):
                     f"Route '{fiber_route.name}' already has a {role_label} ('{existing_same_type.first().site_display}'). Each route can only have one {role_label}."
                 )
 
-        selected_drops = []
-        if fiber_route and dropped_cores_str:
-            selected_drops = parse_core_string(dropped_cores_str)
-            total_cores = fiber_route.total_cores
-
-            # Check valid core bounds
-            invalid_cores = [c for c in selected_drops if c < 1 or c > total_cores]
-            if invalid_cores:
-                self.add_error(
-                    'dropped_cores',
-                    f"Selected core(s) {invalid_cores} are out of bounds. Route '{fiber_route.name}' only has {total_cores} cores."
-                )
-
-            # Check conflicts against other consuming drop points (Intermediate Drop and End Point)
-            if point_type in ['drop', 'end']:
-                other_consuming = FiberDropPoint.objects.filter(
-                    fiber_route=fiber_route,
-                    point_type__in=['drop', 'end']
-                )
-                if self.instance and self.instance.pk:
-                    other_consuming = other_consuming.exclude(pk=self.instance.pk)
-
-                for other in other_consuming:
-                    other_cores = set(other.parsed_dropped_cores)
-                    conflicts = [c for c in selected_drops if c in other_cores]
-                    if conflicts:
-                        conflict_str = ", ".join(f"Core {c}" for c in conflicts)
-                        self.add_error(
-                            'dropped_cores',
-                            f"{conflict_str} is already terminated at '{other.site_display}' ({other.get_point_type_display()}). Circuit complete - each core can only be dropped once along the route."
-                        )
-                        break
-
-        # Validate passed cores
-        if point_type == 'end':
-            # End points do not have outgoing passed cores
-            cleaned_data['passed_cores'] = ''
-        elif fiber_route and passed_cores_str:
-            selected_passes = parse_core_string(passed_cores_str)
-            total_cores = fiber_route.total_cores
-
-            invalid_passes = [c for c in selected_passes if c < 1 or c > total_cores]
-            if invalid_passes:
-                self.add_error(
-                    'passed_cores',
-                    f"Passed core(s) {invalid_passes} are out of bounds (1-{total_cores})."
-                )
-
-            if point_type == 'drop':
-                # 1. Dropped cores and passed cores cannot overlap at this point
-                overlap = set(selected_drops).intersection(set(selected_passes))
-                if overlap:
-                    overlap_str = ", ".join(f"Core {c}" for c in sorted(list(overlap)))
-                    self.add_error(
-                        'passed_cores',
-                        f"{overlap_str} is selected in Dropped Cores and cannot simultaneously pass through."
-                    )
-
-                # 2. Cannot pass a core that was already terminated upstream
-                other_consuming = FiberDropPoint.objects.filter(
-                    fiber_route=fiber_route,
-                    point_type__in=['drop', 'end']
-                )
-                if self.instance and self.instance.pk:
-                    other_consuming = other_consuming.exclude(pk=self.instance.pk)
-
-                for other in other_consuming:
-                    other_cores = set(other.parsed_dropped_cores)
-                    pass_conflicts = [c for c in selected_passes if c in other_cores]
-                    if pass_conflicts:
-                        conflict_str = ", ".join(f"Core {c}" for c in pass_conflicts)
-                        self.add_error(
-                            'passed_cores',
-                            f"{conflict_str} was already terminated at '{other.site_display}'. It cannot pass through this point because its circuit is complete."
-                        )
-                        break
-
         return self.cleaned_data
+
+
+# --- Bulk Import Forms ---
+
+class FiberVendorImportForm(NetBoxModelImportForm):
+    class Meta:
+        model = FiberVendor
+        fields = ('name', 'slug', 'contact_name', 'contact_phone', 'contact_email', 'description', 'comments')
+
+
+class FiberRouteImportForm(NetBoxModelImportForm):
+    vendor = forms.ModelChoiceField(
+        queryset=FiberVendor.objects.all(),
+        to_field_name='name',
+        required=True,
+        help_text='Vendor Name'
+    )
+
+    class Meta:
+        model = FiberRoute
+        fields = ('name', 'vendor', 'cable_type', 'status', 'total_length_km', 'total_cores', 'description', 'comments')
+
+
+class FiberDropPointImportForm(NetBoxModelImportForm):
+    fiber_route = forms.ModelChoiceField(
+        queryset=FiberRoute.objects.all(),
+        to_field_name='name',
+        required=True,
+        help_text='Route Name'
+    )
+    site = forms.ModelChoiceField(
+        queryset=Site.objects.all(),
+        to_field_name='name',
+        required=False,
+        help_text='NetBox Site Name (optional)'
+    )
+
+    class Meta:
+        model = FiberDropPoint
+        fields = ('fiber_route', 'site', 'name', 'point_type', 'distance_km', 'description', 'comments')
 
 
 # --- Filter Forms ---

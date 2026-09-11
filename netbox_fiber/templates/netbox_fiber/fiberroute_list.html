@@ -1,1 +1,165 @@
 {% extends 'generic/object_list.html' %}
+{% load helpers %}
+{% load render_table from django_tables2 %}
+
+{% block extra_controls %}
+  <a href="{% url 'plugins:netbox_fiber:fiberroute_import' %}" class="btn btn-sm btn-outline-primary">
+    <i class="mdi mdi-upload me-1"></i>Import Routes
+  </a>
+{% endblock %}
+
+{% block content %}
+<!-- View Switcher & Quick Stats Bar -->
+<div class="d-flex flex-wrap justify-content-between align-items-center mb-3 gap-2">
+  <div class="text-muted small">
+    Showing <strong>{{ route_cards|length }}</strong> Fiber Routes
+  </div>
+  <div class="btn-group btn-group-sm" role="group" id="view-mode-toggle">
+    <button type="button" class="btn btn-primary active" id="btn-show-cards" onclick="toggleRouteView('cards')">
+      <i class="mdi mdi-view-agenda-outline me-1"></i>Card Flow View
+    </button>
+    <button type="button" class="btn btn-outline-primary" id="btn-show-table" onclick="toggleRouteView('table')">
+      <i class="mdi mdi-table me-1"></i>Table View
+    </button>
+  </div>
+</div>
+
+<!-- 1. Route Cards Flow View (Exact View from Attachment) -->
+<div id="route-cards-view">
+  {% if route_cards %}
+    <div class="row g-3">
+      {% for item in route_cards %}
+        <div class="col-12">
+          <div class="card border rounded-3 p-3 shadow-sm bg-body">
+            <!-- Top Route Meta Row -->
+            <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-2">
+              <div class="d-flex align-items-center flex-wrap gap-2">
+                <a href="{{ item.route.get_absolute_url }}" class="fs-5 fw-bold text-decoration-none">
+                  {{ item.route.name }}
+                </a>
+                <span class="badge bg-secondary text-white">{{ item.route.get_cable_type_display }}</span>
+                <span class="badge {% if item.route.status == 'active' %}bg-success text-white{% elif item.route.status == 'planned' %}bg-info text-dark{% else %}bg-warning text-dark{% endif %}">
+                  {{ item.route.get_status_display }}
+                </span>
+                {% if item.route.vendor %}
+                  <span class="badge bg-light text-dark border">
+                    <i class="mdi mdi-domain me-1"></i>{{ item.route.vendor.name }}
+                  </span>
+                {% endif %}
+              </div>
+              <div class="d-flex align-items-center gap-2">
+                <span class="badge bg-primary text-white fs-6">{{ item.route.total_cores }} Cores</span>
+                <span class="badge bg-dark text-white fs-6">{{ item.route.total_length_km }} KM</span>
+                <a href="{{ item.route.get_absolute_url }}" class="btn btn-sm btn-outline-primary ms-1">
+                  <i class="mdi mdi-eye me-1"></i>View Route &amp; Drops
+                </a>
+                <a href="{% url 'plugins:netbox_fiber:fiberroute_edit' pk=item.route.pk %}" class="btn btn-sm btn-outline-secondary" title="Edit Route">
+                  <i class="mdi mdi-pencil"></i>
+                </a>
+              </div>
+            </div>
+
+            <!-- Route Path Flow (Start -> Intermediate Stations -> End) -->
+            <div class="p-3 bg-body-tertiary rounded-2 mt-2">
+              <div class="text-muted small fw-bold mb-2 text-uppercase" style="letter-spacing: 0.5px;">
+                <i class="mdi mdi-source-branch me-1 text-primary"></i>Route Drop Points &amp; Core Allocations:
+              </div>
+              <div class="d-flex flex-wrap align-items-center gap-2">
+                <!-- Starting Station -->
+                <div class="border border-success rounded px-3 py-2 bg-body shadow-sm">
+                  <div class="fw-bold text-success small">
+                    <i class="mdi mdi-ray-start me-1"></i>{{ item.route.start_point_display }} (Start)
+                  </div>
+                </div>
+
+                <!-- Intermediate Stations / Points -->
+                {% for dp in item.drop_points %}
+                  <div class="text-muted"><i class="mdi mdi-arrow-right-bold"></i></div>
+                  <div class="border border-warning rounded px-3 py-2 bg-body shadow-sm">
+                    <div class="fw-bold text-warning-emphasis small">
+                      <i class="mdi mdi-map-marker-outline me-1"></i>{{ dp.site_display }}
+                      {% if dp.distance_km %}
+                        <span class="badge bg-secondary-subtle text-secondary small ms-1">{{ dp.distance_km }} KM</span>
+                      {% endif %}
+                    </div>
+                  </div>
+                {% empty %}
+                  <div class="text-muted"><i class="mdi mdi-arrow-right-bold"></i></div>
+                  <span class="badge bg-light text-muted border px-2 py-1">Direct Route (No Intermediate Stations)</span>
+                {% endfor %}
+
+                <!-- End Station -->
+                <div class="text-muted"><i class="mdi mdi-arrow-right-bold"></i></div>
+                <div class="border border-primary rounded px-3 py-2 bg-body shadow-sm">
+                  <div class="fw-bold text-primary small">
+                    <i class="mdi mdi-ray-end me-1"></i>{{ item.route.end_point_display }} (End)
+                  </div>
+                </div>
+              </div>
+            </div>
+
+          </div>
+        </div>
+      {% endfor %}
+    </div>
+  {% else %}
+    <div class="card p-5 text-center text-muted">
+      <i class="mdi mdi-ray-vertex-off fs-1 text-secondary mb-2"></i>
+      <h5>No Fiber Routes Found</h5>
+      <p class="small text-muted mb-3">Get started by adding or importing fiber routes.</p>
+      <div class="d-flex justify-content-center gap-2">
+        <a href="{% url 'plugins:netbox_fiber:fiberroute_add' %}" class="btn btn-sm btn-primary">
+          <i class="mdi mdi-plus-thick me-1"></i>Add Route
+        </a>
+        <a href="{% url 'plugins:netbox_fiber:fiberroute_import' %}" class="btn btn-sm btn-outline-primary">
+          <i class="mdi mdi-upload me-1"></i>Import Routes
+        </a>
+      </div>
+    </div>
+  {% endif %}
+</div>
+
+<!-- 2. Standard NetBox Table View (Hidden by default, toggleable) -->
+<div id="route-table-view" style="display: none;">
+  <div class="card">
+    <div class="card-body table-responsive">
+      {% render_table table %}
+    </div>
+  </div>
+</div>
+
+<script>
+function toggleRouteView(mode) {
+  const cardsView = document.getElementById('route-cards-view');
+  const tableView = document.getElementById('route-table-view');
+  const btnCards = document.getElementById('btn-show-cards');
+  const btnTable = document.getElementById('btn-show-table');
+
+  if (mode === 'table') {
+    cardsView.style.display = 'none';
+    tableView.style.display = 'block';
+    btnTable.classList.add('active', 'btn-primary');
+    btnTable.classList.remove('btn-outline-primary');
+    btnCards.classList.remove('active', 'btn-primary');
+    btnCards.classList.add('btn-outline-primary');
+    localStorage.setItem('netbox_fiber_route_view', 'table');
+  } else {
+    cardsView.style.display = 'block';
+    tableView.style.display = 'none';
+    btnCards.classList.add('active', 'btn-primary');
+    btnCards.classList.remove('btn-outline-primary');
+    btnTable.classList.remove('active', 'btn-primary');
+    btnTable.classList.add('btn-outline-primary');
+    localStorage.setItem('netbox_fiber_route_view', 'cards');
+  }
+}
+
+// Restore user view preference if saved
+document.addEventListener('DOMContentLoaded', function() {
+  const pref = localStorage.getItem('netbox_fiber_route_view');
+  if (pref === 'table') {
+    toggleRouteView('table');
+  }
+});
+</script>
+{% endblock %}

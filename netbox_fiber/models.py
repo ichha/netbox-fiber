@@ -350,12 +350,20 @@ class FiberDropPoint(NetBoxModel):
     comments = models.TextField(blank=True)
 
     class Meta:
-        ordering = ('fiber_route', 'sequence', 'name')
+        ordering = ('fiber_route', 'sequence', 'distance_km', 'name')
         verbose_name = 'Fiber Drop Point'
         verbose_name_plural = 'Fiber Drop Points'
 
     def __str__(self):
-        return f"{self.name} ({self.fiber_route.name} - Cores: {self.dropped_cores})"
+        if self.distance_km:
+            return f"{self.site_display} ({self.distance_km} KM)"
+        return self.site_display
+
+    def save(self, *args, **kwargs):
+        if not self.sequence and self.fiber_route_id:
+            count = FiberDropPoint.objects.filter(fiber_route_id=self.fiber_route_id).count()
+            self.sequence = count + 1
+        super().save(*args, **kwargs)
 
     def get_absolute_url(self):
         return reverse('plugins:netbox_fiber:fiberdroppoint', args=[self.pk])

@@ -32,8 +32,6 @@ class FiberRouteTable(NetBoxTable):
     end_point = tables.Column(accessor='end_point_display', verbose_name='End Point')
     total_length_km = tables.Column(verbose_name='Length (KM)')
     total_cores = tables.Column(verbose_name='Cores')
-    start_cores_dropped = tables.Column(verbose_name='Start Cores Dropped')
-    end_cores_dropped = tables.Column(verbose_name='End Cores Dropped')
     cable_type = columns.ChoiceFieldColumn(verbose_name='Type')
     status = columns.ChoiceFieldColumn()
     tags = columns.TagColumn(url_name='plugins:netbox_fiber:fiberroute_list')
@@ -44,37 +42,30 @@ class FiberRouteTable(NetBoxTable):
         fields = (
             'pk', 'id', 'name', 'vendor', 'cable_type', 'status',
             'start_point', 'end_point', 'total_length_km', 'total_cores',
-            'start_cores_dropped', 'end_cores_dropped', 'description', 'tags', 'actions'
+            'description', 'tags', 'actions'
         )
         default_columns = (
             'pk', 'name', 'vendor', 'start_point', 'end_point',
-            'total_length_km', 'total_cores', 'start_cores_dropped', 'end_cores_dropped',
-            'status', 'actions'
+            'total_length_km', 'total_cores', 'status', 'actions'
         )
 
 
 class FiberDropPointTable(NetBoxTable):
-    sequence = tables.Column(verbose_name='#')
-    name = tables.Column(linkify=True, verbose_name='Drop Point / Site')
+    name = tables.Column(linkify=True, verbose_name='Point / Station Name')
     fiber_route = tables.Column(linkify=True, verbose_name='Fiber Route')
     site = tables.Column(linkify=True, verbose_name='NetBox Site')
     point_type = columns.ChoiceFieldColumn(verbose_name='Point Type')
     distance_km = tables.Column(verbose_name='Distance (KM)')
-    dropped_cores = tables.TemplateColumn(
-        template_code='<span class="badge bg-primary text-white fs-6">{{ record.dropped_cores }}</span>',
-        verbose_name='Dropped Cores'
-    )
-    passed_cores = tables.Column(verbose_name='Passed Cores')
     tags = columns.TagColumn(url_name='plugins:netbox_fiber:fiberdroppoint_list')
     actions = columns.ActionsColumn(actions=('edit', 'delete'))
 
     class Meta(NetBoxTable.Meta):
         model = FiberDropPoint
         fields = (
-            'pk', 'id', 'sequence', 'name', 'fiber_route', 'site', 'point_type',
-            'distance_km', 'dropped_cores', 'passed_cores', 'tags', 'actions'
+            'pk', 'id', 'name', 'fiber_route', 'site', 'point_type',
+            'distance_km', 'description', 'tags', 'actions'
         )
         default_columns = (
-            'pk', 'sequence', 'name', 'fiber_route', 'site', 'point_type',
-            'distance_km', 'dropped_cores', 'actions'
+            'pk', 'name', 'fiber_route', 'site', 'point_type',
+            'distance_km', 'actions'
         )

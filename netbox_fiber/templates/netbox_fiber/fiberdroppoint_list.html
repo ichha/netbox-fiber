@@ -1,1 +1,7 @@
 {% extends 'generic/object_list.html' %}
+
+{% block extra_controls %}
+  <a href="{% url 'plugins:netbox_fiber:fiberdroppoint_import' %}" class="btn btn-sm btn-outline-primary">
+    <i class="mdi mdi-upload me-1"></i>Import Drop Points
+  </a>
+{% endblock %}

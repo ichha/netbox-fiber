@@ -49,7 +49,7 @@
 
   <div class="col col-md-6">
     <div class="card h-100">
-      <h5 class="card-header"><i class="mdi mdi-map-marker-path me-1 text-success"></i>Endpoint & Drop Allocation</h5>
+      <h5 class="card-header"><i class="mdi mdi-map-marker-path me-1 text-success"></i>Route Endpoints</h5>
       <div class="card-body">
         <!-- Start Point Block -->
         <div class="p-3 mb-3 bg-body-tertiary rounded border">
@@ -63,21 +63,11 @@
               {% endif %}
             </span>
           </div>
-          <div class="small text-muted mb-2">
+          <div class="small text-muted">
             {% if object.start_site %}
               Linked NetBox Site: <a href="{{ object.start_site.get_absolute_url }}">{{ object.start_site.name }}</a>
             {% else %}
               Custom Location
-            {% endif %}
-          </div>
-          <div>
-            <span class="text-muted small fw-semibold me-2">Cores Dropped at Start:</span>
-            {% if object.parsed_start_cores %}
-              {% for c in object.parsed_start_cores %}
-                <span class="badge bg-success text-white me-1">Core {{ c }}</span>
-              {% endfor %}
-            {% else %}
-              <span class="text-muted fst-italic small">All cores originate here</span>
             {% endif %}
           </div>
         </div>
@@ -94,28 +84,18 @@
               {% endif %}
             </span>
           </div>
-          <div class="small text-muted mb-2">
+          <div class="small text-muted">
             {% if object.end_site %}
               Linked NetBox Site: <a href="{{ object.end_site.get_absolute_url }}">{{ object.end_site.name }}</a>
             {% else %}
               Custom Location
             {% endif %}
           </div>
-          <div>
-            <span class="text-muted small fw-semibold me-2">Cores Dropped at End:</span>
-            {% if object.parsed_end_cores %}
-              {% for c in object.parsed_end_cores %}
-                <span class="badge bg-primary text-white me-1">Core {{ c }}</span>
-              {% endfor %}
-            {% else %}
-              <span class="text-muted fst-italic small">None specified</span>
-            {% endif %}
-          </div>
         </div>
 
         <div class="mt-3 text-center">
-          <a href="{% url 'plugins:netbox_fiber:topology_view' %}?route_id={{ object.pk }}" class="btn btn-sm btn-outline-info">
-            <i class="mdi mdi-graph me-1"></i>Open Full Topology View
+          <a href="{% url 'plugins:netbox_fiber:fiberroute_edit' pk=object.pk %}" class="btn btn-sm btn-outline-primary">
+            <i class="mdi mdi-pencil me-1"></i>Edit Route
           </a>
         </div>
       </div>
@@ -123,81 +103,49 @@
   </div>
 </div>
 
-<!-- Schematic Linear Core Allocation Diagram (Enhanced & Scaled) -->
+<!-- Route Flow Path Timeline (Exact Card Flow View) -->
 <div class="row mb-3">
   <div class="col col-md-12">
-    <div class="card shadow-sm border-0">
-      <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center py-2">
-        <h5 class="mb-0 text-white">
-          <i class="mdi mdi-vector-line me-1"></i>Fiber Schematic Diagram (Cores 1 to {{ object.total_cores }})
+    <div class="card shadow-sm border">
+      <div class="card-header bg-body-tertiary d-flex justify-content-between align-items-center py-2">
+        <h5 class="mb-0 fw-bold">
+          <i class="mdi mdi-source-branch me-1 text-primary"></i>Route Path &amp; Stations
         </h5>
-        <span class="badge bg-white text-primary fw-bold">{{ object.total_length_km }} KM &bull; {{ drop_points|length }} Drop Points</span>
+        <span class="badge bg-primary text-white">{{ drop_points|length }} Intermediate Stations</span>
       </div>
       <div class="card-body p-3">
-        <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-2">
-          <span class="text-muted small">
-            <i class="mdi mdi-information-outline me-1"></i>Click any site name above the boxes to open its NetBox page. Scroll horizontally to view all drop points.
-          </span>
-          <div class="d-flex align-items-center gap-2">
-            <div class="btn-group btn-group-sm" role="group">
-              <button type="button" class="btn btn-outline-secondary" id="schematic-scroll-left" title="Scroll Left">
-                <i class="mdi mdi-chevron-left me-1"></i>Scroll Left
-              </button>
-              <button type="button" class="btn btn-outline-secondary" id="schematic-scroll-right" title="Scroll Right">
-                Scroll Right<i class="mdi mdi-chevron-right ms-1"></i>
-              </button>
+        <div class="d-flex flex-wrap align-items-center gap-2 p-2 bg-body-tertiary rounded-2">
+          <!-- Start Station -->
+          <div class="border border-success rounded px-3 py-2 bg-body shadow-sm">
+            <div class="fw-bold text-success small">
+              <i class="mdi mdi-ray-start me-1"></i>{{ object.start_point_display }} (Start)
             </div>
-            <span class="badge bg-secondary-subtle text-secondary-emphasis border">
-              <i class="mdi mdi-arrow-left-right me-1"></i>Horizontal Scroll
-            </span>
-            <span class="badge bg-primary text-white">{{ drop_points|length }} Drop Points</span>
           </div>
-        </div>
-        
-        <style>
-          #schematic-container {
-            scrollbar-width: auto;
-            scrollbar-color: #0d6efd var(--bs-tertiary-bg, #f1f5f9);
-            cursor: grab;
-          }
-          #schematic-container:active {
-            cursor: grabbing;
-          }
-          #schematic-container::-webkit-scrollbar {
-            height: 10px;
-          }
-          #schematic-container::-webkit-scrollbar-track {
-            background: var(--bs-tertiary-bg, #f1f5f9);
-            border-radius: 5px;
-          }
-          #schematic-container::-webkit-scrollbar-thumb {
-            background: #0d6efd;
-            border-radius: 5px;
-          }
-          #schematic-container::-webkit-scrollbar-thumb:hover {
-            background: #0b5ed7;
-          }
-          .schematic-dp-group:hover .drop-box-rect {
-            stroke: #d97706 !important;
-            stroke-width: 3.5px !important;
-            filter: drop-shadow(0 4px 10px rgba(217, 119, 6, 0.3));
-          }
-        </style>
 
-        <!-- Django json_script to pass serialized nodes safely -->
-        {{ schematic_nodes|json_script:"schematic-nodes-data" }}
-
-        <!-- Interactive Schematic Canvas/SVG Container with Horizontal Scroll -->
-        <div id="schematic-container" style="width: 100%; max-width: 100%; overflow-x: auto; overflow-y: hidden; background: var(--bs-body-bg); border-radius: 8px; border: 1px solid var(--bs-border-color); padding: 15px; position: relative;">
-          <svg id="schematic-svg" style="font-family: system-ui, -apple-system, sans-serif; display: block;"></svg>
-
-          <!-- Floating Interactive Hover Tooltip for Drop Points -->
-          <div id="schematic-tooltip" class="card shadow-lg border" style="position: absolute; display: none; z-index: 1050; pointer-events: none; min-width: 260px; max-width: 380px; border-radius: 8px; font-size: 12px; background: var(--bs-body-bg, #ffffff);">
-            <div class="card-header py-1 px-3 fw-bold d-flex justify-content-between align-items-center bg-body-tertiary">
-              <span id="tooltip-title" class="text-primary fw-bold">Drop Point</span>
-              <span class="badge bg-warning text-dark" id="tooltip-badge">Intermediate</span>
+          <!-- Intermediate Stations -->
+          {% for dp in drop_points %}
+            <div class="text-muted"><i class="mdi mdi-arrow-right-bold"></i></div>
+            <div class="border border-warning rounded px-3 py-2 bg-body shadow-sm">
+              <div class="fw-bold text-warning-emphasis small">
+                <a href="{{ dp.get_absolute_url }}" class="text-decoration-none text-dark">
+                  <i class="mdi mdi-map-marker-outline me-1"></i>{{ dp.site_display }}
+                </a>
+                {% if dp.distance_km %}
+                  <span class="badge bg-secondary-subtle text-secondary small ms-1">{{ dp.distance_km }} KM</span>
+                {% endif %}
+              </div>
             </div>
-            <div class="card-body p-2" id="tooltip-body"></div>
+          {% empty %}
+            <div class="text-muted"><i class="mdi mdi-arrow-right-bold"></i></div>
+            <span class="badge bg-light text-muted border px-3 py-2">Direct Point-to-Point Route (No Intermediate Stations)</span>
+          {% endfor %}
+
+          <!-- End Station -->
+          <div class="text-muted"><i class="mdi mdi-arrow-right-bold"></i></div>
+          <div class="border border-primary rounded px-3 py-2 bg-body shadow-sm">
+            <div class="fw-bold text-primary small">
+              <i class="mdi mdi-ray-end me-1"></i>{{ object.end_point_display }} (End)
+            </div>
           </div>
         </div>
       </div>
@@ -210,7 +158,7 @@
   <div class="col col-md-12">
     <div class="card">
       <div class="card-header d-flex flex-wrap justify-content-between align-items-center gap-2 py-2">
-        <h5 class="mb-0"><i class="mdi mdi-source-branch me-1 text-warning"></i>Route Points & Core Allocations</h5>
+        <h5 class="mb-0"><i class="mdi mdi-map-marker-multiple me-1 text-warning"></i>Stations &amp; Drop Points Along Route</h5>
         <div class="btn-group btn-group-sm" role="group">
           <a href="{% url 'plugins:netbox_fiber:fiberdroppoint_add' %}?fiber_route={{ object.pk }}&point_type=start" class="btn btn-outline-success">
             <i class="mdi mdi-ray-start me-1"></i>Set Starting Point
@@ -221,6 +169,9 @@
           <a href="{% url 'plugins:netbox_fiber:fiberdroppoint_add' %}?fiber_route={{ object.pk }}&point_type=end" class="btn btn-outline-primary">
             <i class="mdi mdi-ray-end me-1"></i>Set End Point
           </a>
+          <a href="{% url 'plugins:netbox_fiber:fiberdroppoint_import' %}" class="btn btn-outline-secondary">
+            <i class="mdi mdi-upload me-1"></i>Import Points
+          </a>
         </div>
       </div>
       <div class="card-body table-responsive">
@@ -228,12 +179,10 @@
           <table class="table table-hover align-middle mb-0">
             <thead class="table-light">
               <tr>
-                <th style="width: 50px;">#</th>
-                <th>Point / Site Name</th>
+                <th>Point / Station Name</th>
                 <th>Role / Type</th>
                 <th>Distance (KM)</th>
-                <th>Dropped / Spliced Cores</th>
-                <th>Pass-through Cores</th>
+                <th>NetBox Site</th>
                 <th>Description</th>
                 <th class="text-end">Actions</th>
               </tr>
@@ -241,19 +190,10 @@
             <tbody>
               {% for dp in all_points %}
                 <tr>
-                  <td class="fw-bold">{{ dp.sequence }}</td>
                   <td>
-                    {% if dp.site %}
-                      <a href="{{ dp.site.get_absolute_url }}" class="fw-bold text-decoration-none">
-                        {{ dp.site.name }} <i class="mdi mdi-open-in-new small text-muted"></i>
-                      </a>
-                      <span class="badge bg-primary-subtle text-primary border ms-1">NetBox Site</span>
-                    {% else %}
-                      <a href="{{ dp.get_absolute_url }}" class="fw-bold text-decoration-none">
-                        {{ dp.name }}
-                      </a>
-                      <span class="badge bg-secondary-subtle text-secondary-emphasis border ms-1">Custom Point</span>
-                    {% endif %}
+                    <a href="{{ dp.get_absolute_url }}" class="fw-bold text-decoration-none">
+                      {{ dp.name }}
+                    </a>
                   </td>
                   <td>
                     {% if dp.point_type == 'start' %}
@@ -261,39 +201,32 @@
                     {% elif dp.point_type == 'end' %}
                       <span class="badge bg-primary text-white"><i class="mdi mdi-ray-end me-1"></i>End Point</span>
                     {% else %}
-                      <span class="badge bg-warning text-dark">{{ dp.get_point_type_display }}</span>
+                      <span class="badge bg-warning text-dark"><i class="mdi mdi-map-marker-outline me-1"></i>Intermediate Station</span>
                     {% endif %}
                   </td>
                   <td>
                     {% if dp.distance_km %}
-                      <span class="badge bg-light text-dark border fs-6">{{ dp.distance_km }} KM</span>
+                      <span class="badge bg-secondary text-white">{{ dp.distance_km }} KM</span>
                     {% else %}
-                      <span class="text-muted">-</span>
+                      <span class="text-muted">&mdash;</span>
                     {% endif %}
                   </td>
                   <td>
-                    {% for c in dp.parsed_dropped_cores %}
-                      <span class="badge bg-success text-white me-1">Core {{ c }}</span>
-                    {% empty %}
-                      <span class="badge bg-secondary text-white">{{ dp.dropped_cores|default:"None" }}</span>
-                    {% endfor %}
-                  </td>
-                  <td>
-                    {% if dp.passed_cores %}
-                      {% for c in dp.parsed_passed_cores %}
-                        <span class="badge bg-info-subtle text-info-emphasis border me-1">Core {{ c }}</span>
-                      {% endfor %}
+                    {% if dp.site %}
+                      <a href="{{ dp.site.get_absolute_url }}" class="fw-bold text-decoration-none">
+                        {{ dp.site.name }} <i class="mdi mdi-open-in-new small text-muted"></i>
+                      </a>
                     {% else %}
-                      <span class="text-muted small">Auto/All other</span>
+                      <span class="text-muted">Custom Location</span>
                     {% endif %}
                   </td>
-                  <td class="small text-muted">{{ dp.description|placeholder }}</td>
+                  <td>{{ dp.description|placeholder }}</td>
                   <td class="text-end">
-                    <a href="{% url 'plugins:netbox_fiber:fiberdroppoint_edit' pk=dp.pk %}" class="btn btn-sm btn-outline-warning" title="Edit">
+                    <a href="{% url 'plugins:netbox_fiber:fiberdroppoint_edit' pk=dp.pk %}" class="btn btn-sm btn-outline-secondary" title="Edit">
                       <i class="mdi mdi-pencil"></i>
                     </a>
                     <a href="{% url 'plugins:netbox_fiber:fiberdroppoint_delete' pk=dp.pk %}" class="btn btn-sm btn-outline-danger" title="Delete">
-                      <i class="mdi mdi-trash-can"></i>
+                      <i class="mdi mdi-trash-can-outline"></i>
                     </a>
                   </td>
                 </tr>
@@ -302,551 +235,15 @@
           </table>
         {% else %}
           <div class="text-center py-4 text-muted">
-            <i class="mdi mdi-information-outline fs-3 d-block mb-1"></i>
-            No points or core drops configured for this route yet.
-            <div class="mt-2 btn-group btn-group-sm">
-              <a href="{% url 'plugins:netbox_fiber:fiberdroppoint_add' %}?fiber_route={{ object.pk }}&point_type=start" class="btn btn-outline-success">
-                <i class="mdi mdi-ray-start me-1"></i>Set Starting Point
-              </a>
-              <a href="{% url 'plugins:netbox_fiber:fiberdroppoint_add' %}?fiber_route={{ object.pk }}&point_type=drop" class="btn btn-success">
-                <i class="mdi mdi-plus-thick me-1"></i>Add Drop Point
-              </a>
-              <a href="{% url 'plugins:netbox_fiber:fiberdroppoint_add' %}?fiber_route={{ object.pk }}&point_type=end" class="btn btn-outline-primary">
-                <i class="mdi mdi-ray-end me-1"></i>Set End Point
-              </a>
-            </div>
+            <i class="mdi mdi-map-marker-off fs-2 d-block mb-1 text-secondary"></i>
+            <p class="mb-2">No stations or drop points added along this route yet.</p>
+            <a href="{% url 'plugins:netbox_fiber:fiberdroppoint_add' %}?fiber_route={{ object.pk }}" class="btn btn-sm btn-primary">
+              <i class="mdi mdi-plus-thick me-1"></i>Add First Station
+            </a>
           </div>
         {% endif %}
       </div>
     </div>
   </div>
 </div>
-
-<!-- Core Allocation Matrix (High Contrast Badges) -->
-<div class="row mb-3">
-  <div class="col col-md-12">
-    <div class="card">
-      <div class="card-header py-2">
-        <h5 class="mb-0"><i class="mdi mdi-table-network me-1 text-info"></i>Core Allocation Matrix (Total {{ object.total_cores }} Cores)</h5>
-      </div>
-      <div class="card-body table-responsive">
-        <table class="table table-hover table-bordered align-middle mb-0 text-center">
-          <thead class="table-light">
-            <tr>
-              <th style="width: 90px;">Core #</th>
-              <th>Origination</th>
-              <th>Status / Path</th>
-              <th>Terminations / Drop Points</th>
-            </tr>
-          </thead>
-          <tbody>
-            {% for cm in core_map %}
-              <tr>
-                <td>
-                  <span class="badge rounded-pill text-white px-2 py-1" style="background-color: {{ cm.color }}; font-size: 0.95rem;">
-                    Core {{ cm.core_number }}
-                  </span>
-                </td>
-                <td>
-                  <span class="badge bg-success-subtle text-success-emphasis border">
-                    <i class="mdi mdi-ray-start me-1"></i>{{ object.start_point_display }}
-                  </span>
-                </td>
-                <td>
-                  <span class="fw-bold" style="color: {{ cm.color }};">
-                    {{ cm.status_label }}
-                  </span>
-                </td>
-                <td>
-                  {% for loc in cm.dropped_at %}
-                    <span class="badge {% if loc.type == 'start' %}bg-success text-white{% elif loc.type == 'end' %}bg-primary text-white{% else %}bg-warning text-dark border{% endif %} me-1 py-1">
-                      {{ loc.role }}
-                    </span>
-                  {% empty %}
-                    <span class="text-muted fst-italic">Dark / Unassigned</span>
-                  {% endfor %}
-                </td>
-              </tr>
-            {% endfor %}
-          </tbody>
-        </table>
-      </div>
-    </div>
-  </div>
-</div>
-
-<script>
-function escapeXml(unsafe) {
-  if (unsafe === null || unsafe === undefined) return '';
-  return String(unsafe)
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&apos;');
-}
-
-function renderFiberSchematic() {
-  const container = document.getElementById('schematic-container');
-  const svg = document.getElementById('schematic-svg');
-  if (!svg || !container) return;
-
-  try {
-    const dataEl = document.getElementById('schematic-nodes-data');
-    let nodesData = [];
-    if (dataEl && dataEl.textContent) {
-      try {
-        nodesData = JSON.parse(dataEl.textContent);
-      } catch (e) {
-        console.error("Error parsing schematic data from json_script:", e);
-      }
-    }
-    if (!nodesData || !nodesData.length) {
-      try {
-        nodesData = {{ schematic_nodes_json|safe }};
-      } catch (e) {
-        nodesData = [];
-      }
-    }
-
-    const totalCores = parseInt("{{ object.total_cores }}", 10) || 6;
-    const totalKm = "{{ object.total_length_km }} KM";
-    const vendorName = "{{ object.vendor.name|escapejs }}";
-
-    const dropNodes = (nodesData || []).filter(n => n.type === 'drop');
-    const numDrops = dropNodes.length;
-
-    // Dynamically calculate width: each drop point gets generous 280px horizontal space
-    const dropSpacing = 280;
-    const minRequiredWidth = 50 + 160 + Math.max(1, numDrops + 1) * dropSpacing + 160 + 80;
-    const containerWidth = container.clientWidth ? (container.clientWidth - 30) : 1000;
-    const width = Math.max(containerWidth, minRequiredWidth, 1050);
-
-    // Dynamic box height and canvas height scaled to total cores
-    const coreSpacing = totalCores > 24 ? 22 : (totalCores > 12 ? 26 : 32);
-    const coresHeight = Math.max(1, totalCores - 1) * coreSpacing;
-    const boxH = Math.max(140, coresHeight + 70);
-    const dropBoxH = 90;
-    const dropBoxW = 210;
-    const boxW = 160;
-
-    const svgHeight = boxH + 290;
-
-    svg.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
-    svg.setAttribute('xmlns:xlink', 'http://www.w3.org/1999/xlink');
-    svg.setAttribute('viewBox', `0 0 ${width} ${svgHeight}`);
-    svg.setAttribute('width', width);
-    svg.setAttribute('height', svgHeight);
-    svg.style.width = `${width}px`;
-    svg.style.minWidth = `${width}px`;
-    svg.style.height = `${svgHeight}px`;
-
-    // Theme Colors
-    const isDark = document.documentElement.getAttribute('data-bs-theme') === 'dark';
-    const textColor = isDark ? '#f8f9fa' : '#1e293b';
-    const mutedText = isDark ? '#94a3b8' : '#64748b';
-    const boxBg = isDark ? '#1e293b' : '#ffffff';
-    const panelBg = isDark ? '#0f172a' : '#f8fafc';
-
-    const startX = 50;
-    const startY = 85;
-    const endX = width - boxW - 50;
-    const endY = startY;
-
-    const startNode = (nodesData || []).find(n => n.type === 'start');
-    const endNode = (nodesData || []).find(n => n.type === 'end');
-
-    let svgContent = '';
-
-    // 1. Top Route Title Bar
-    svgContent += `
-      <g>
-        <rect x="20" y="8" width="${width - 40}" height="32" rx="6" fill="${panelBg}" stroke="${isDark ? '#334155' : '#e2e8f0'}" stroke-width="1"/>
-        <text x="${width / 2}" y="29" text-anchor="middle" font-size="13" font-weight="bold" fill="${textColor}">
-          Vendor: <tspan fill="#0d6efd">${escapeXml(vendorName)}</tspan> &#x2022; Total Route Distance: <tspan fill="#198754">${escapeXml(totalKm)}</tspan> &#x2022; Cable Capacity: <tspan fill="#d97706">${totalCores} Cores</tspan>
-        </text>
-      </g>
-    `;
-
-    // Helper function to render site link
-    function renderSiteHeader(x, y, roleLabel, roleColor, siteName, url) {
-      let out = `
-        <text x="${x}" y="${y - 24}" text-anchor="middle" font-size="11" font-weight="bold" fill="${roleColor}" letter-spacing="0.5">
-          ${escapeXml(roleLabel).toUpperCase()}
-        </text>
-      `;
-      if (url) {
-        out += `
-          <a href="${escapeXml(url)}" xlink:href="${escapeXml(url)}" target="_blank" style="cursor: pointer;">
-            <text x="${x}" y="${y - 6}" text-anchor="middle" font-size="14" font-weight="bold" fill="#0d6efd" text-decoration="underline">
-              ${escapeXml(siteName)} &#x2197;
-            </text>
-          </a>
-        `;
-      } else {
-        out += `
-          <text x="${x}" y="${y - 6}" text-anchor="middle" font-size="14" font-weight="bold" fill="${textColor}">
-            ${escapeXml(siteName)}
-          </text>
-        `;
-      }
-      return out;
-    }
-
-    // 2. Start Site Header & Box
-    svgContent += renderSiteHeader(
-      startX + boxW / 2,
-      startY,
-      startNode ? startNode.point_name : 'STARTING POINT',
-      '#198754',
-      startNode ? startNode.name : 'Start',
-      startNode ? startNode.url : null
-    );
-
-    svgContent += `
-      <g>
-        <rect x="${startX}" y="${startY}" width="${boxW}" height="${boxH}" rx="8" fill="${boxBg}" stroke="#198754" stroke-width="2.5" />
-        <rect x="${startX}" y="${startY}" width="${boxW}" height="26" rx="8" fill="#198754" fill-opacity="0.15" />
-        <text x="${startX + boxW / 2}" y="${startY + 18}" text-anchor="middle" font-size="11" font-weight="bold" fill="#198754">
-          TERMINAL BLOCK
-        </text>
-      </g>
-    `;
-
-    // 3. End Site Header & Box
-    svgContent += renderSiteHeader(
-      endX + boxW / 2,
-      endY,
-      endNode ? endNode.point_name : 'END POINT',
-      '#0d6efd',
-      endNode ? endNode.name : 'End',
-      endNode ? endNode.url : null
-    );
-
-    svgContent += `
-      <g>
-        <rect x="${endX}" y="${endY}" width="${boxW}" height="${boxH}" rx="8" fill="${boxBg}" stroke="#0d6efd" stroke-width="2.5" />
-        <rect x="${endX}" y="${endY}" width="${boxW}" height="26" rx="8" fill="#0d6efd" fill-opacity="0.15" />
-        <text x="${endX + boxW / 2}" y="${endY + 18}" text-anchor="middle" font-size="11" font-weight="bold" fill="#0d6efd">
-          END TERMINALS
-        </text>
-      </g>
-    `;
-
-    // 4. Drop Point Boxes Below
-    const dropPositions = {};
-    const dropY = startY + boxH + 90;
-
-    if (numDrops > 0) {
-      const availableWidth = endX - (startX + boxW) - 60;
-      const step = availableWidth / (numDrops + 1);
-
-      dropNodes.forEach((dp, index) => {
-        const dpCenterX = (startX + boxW + 30) + (index + 1) * step;
-        const dpX = dpCenterX - (dropBoxW / 2);
-        dropPositions[dp.id] = { x: dpCenterX, y: dropY, boxX: dpX, boxY: dropY };
-
-        // Header Above Box: Clean, concise header to avoid horizontal collision
-        const roleText = `DROP POINT #${index + 1}${dp.km !== null && dp.km !== undefined ? ` • ${dp.km} KM` : ''}`;
-        svgContent += renderSiteHeader(
-          dpCenterX,
-          dropY,
-          roleText,
-          '#d97706',
-          dp.name,
-          dp.url
-        );
-
-        // Box: Clean and uncrowded. Dropped and Passed cores are revealed only on hover!
-        const droppedList = dp.dropped_cores && dp.dropped_cores.length ? dp.dropped_cores : [];
-        const passedList = dp.passed_cores && dp.passed_cores.length ? dp.passed_cores : [];
-        const droppedCount = droppedList.length;
-        const passedCount = passedList.length;
-
-        svgContent += `
-          <g class="schematic-dp-group" data-dp-id="${escapeXml(dp.id)}" style="cursor: pointer;">
-            <title>${escapeXml(dp.name)} (${escapeXml(dp.point_type || 'Intermediate Drop Point')})&#10;Distance: ${dp.km !== null && dp.km !== undefined ? dp.km : 0} KM&#10;Dropped Cores (${droppedCount}): ${droppedCount ? droppedList.map(c => `Core ${c}`).join(', ') : 'None'}&#10;Passed Cores (${passedCount}): ${passedCount ? passedList.map(c => `Core ${c}`).join(', ') : 'None'}</title>
-            <rect x="${dpX}" y="${dropY}" width="${dropBoxW}" height="${dropBoxH}" rx="8" fill="${boxBg}" stroke="#ffc107" stroke-width="2.5" class="drop-box-rect"/>
-            <rect x="${dpX}" y="${dropY}" width="${dropBoxW}" height="22" rx="8" fill="#ffc107" fill-opacity="0.18"/>
-            <text x="${dpCenterX}" y="${dropY + 15}" text-anchor="middle" font-size="10" font-weight="bold" fill="#b45309">
-              DROP POINT ENCLOSURE
-            </text>
-            <text x="${dpCenterX}" y="${dropY + 44}" text-anchor="middle" font-size="12" font-weight="bold" fill="${textColor}">
-              ${escapeXml(dp.point_type || 'Intermediate Drop Point')}
-            </text>
-            <text x="${dpCenterX}" y="${dropY + 66}" text-anchor="middle" font-size="10" fill="${mutedText}">
-              Hover for Dropped &amp; Passed Cores
-            </text>
-          </g>
-        `;
-      });
-    }
-
-    // 5. Draw Individual Cores & Connecting Lines
-    const bundleStartX = startX + boxW;
-    const bundleEndX = endX;
-    const firstCoreY = startY + 44;
-
-    const coreColors = [
-      '#2563eb', '#16a34a', '#dc2626', '#ea580c', '#9333ea', 
-      '#0891b2', '#d97706', '#059669', '#4f46e5', '#db2777', 
-      '#ca8a04', '#64748b'
-    ];
-
-    for (let c = 1; c <= totalCores; c++) {
-      const cY = firstCoreY + (c - 1) * coreSpacing;
-      const color = coreColors[(c - 1) % coreColors.length];
-
-      // Draw Start Terminal Pin
-      svgContent += `
-        <g>
-          <circle cx="${bundleStartX}" cy="${cY}" r="5" fill="${color}" stroke="#ffffff" stroke-width="2" />
-          <text x="${bundleStartX - 10}" y="${cY + 4}" text-anchor="end" font-size="11" font-weight="bold" fill="${textColor}">
-            Pin ${c}
-          </text>
-        </g>
-      `;
-
-      // Find if this core drops at any drop point
-      let dropsAtPoint = null;
-      for (const dp of dropNodes) {
-        if (dp.dropped_cores && dp.dropped_cores.includes(c)) {
-          dropsAtPoint = dp;
-          break;
-        }
-      }
-
-      if (!dropsAtPoint) {
-        // Passes straight to End Site Box
-        const midX = (bundleStartX + bundleEndX) / 2;
-        svgContent += `
-          <g>
-            <!-- Horizontal Line -->
-            <line x1="${bundleStartX}" y1="${cY}" x2="${bundleEndX}" y2="${cY}" stroke="${color}" stroke-width="2.5" />
-            <!-- End Terminal Pin -->
-            <circle cx="${bundleEndX}" cy="${cY}" r="5" fill="${color}" stroke="#ffffff" stroke-width="2" />
-            <text x="${bundleEndX + 10}" y="${cY + 4}" text-anchor="start" font-size="11" font-weight="bold" fill="${textColor}">
-              Term ${c}
-            </text>
-            <!-- Center Badge -->
-            <rect x="${midX - 28}" y="${cY - 10}" width="56" height="20" rx="4" fill="${color}" stroke="#ffffff" stroke-width="1"/>
-            <text x="${midX}" y="${cY + 4}" text-anchor="middle" font-size="11" font-weight="bold" fill="#ffffff">
-              Core ${c}
-            </text>
-          </g>
-        `;
-      } else {
-        // Drops into dropsAtPoint
-        const pos = dropPositions[dropsAtPoint.id];
-        const coreIdx = Math.max(0, dropsAtPoint.dropped_cores ? dropsAtPoint.dropped_cores.indexOf(c) : 0);
-        const turnX = pos ? (pos.boxX + 35 + (coreIdx * 32)) : (bundleStartX + 120);
-        const labelY = ((cY + dropY) / 2) - 15 + (coreIdx % 3) * 22;
-
-        svgContent += `
-          <g>
-            <!-- Horizontal Path from Start to Turn -->
-            <line x1="${bundleStartX}" y1="${cY}" x2="${turnX}" y2="${cY}" stroke="${color}" stroke-width="2.5" />
-            <!-- Branch Downwards into Drop Box -->
-            <path d="M ${turnX} ${cY} Q ${turnX} ${cY + 16} ${turnX} ${dropY}" fill="none" stroke="${color}" stroke-width="2.5" />
-            <circle cx="${turnX}" cy="${dropY}" r="4.5" fill="${color}" stroke="#ffffff" stroke-width="1.5"/>
-
-            <!-- Label on Horizontal Section -->
-            <rect x="${bundleStartX + 15 + ((c-1)%3)*15}" y="${cY - 10}" width="54" height="20" rx="4" fill="${color}" stroke="#ffffff" stroke-width="1"/>
-            <text x="${bundleStartX + 42 + ((c-1)%3)*15}" y="${cY + 4}" text-anchor="middle" font-size="11" font-weight="bold" fill="#ffffff">
-              Core ${c}
-            </text>
-
-            <!-- Label on Vertical Drop Section -->
-            <rect x="${turnX + 5}" y="${labelY - 10}" width="56" height="18" rx="4" fill="${color}" stroke="#ffffff" stroke-width="1"/>
-            <text x="${turnX + 33}" y="${labelY + 3}" text-anchor="middle" font-size="10" font-weight="bold" fill="#ffffff">
-              Core ${c} &#x2193;
-            </text>
-          </g>
-        `;
-      }
-    }
-
-    svg.innerHTML = svgContent;
-    setupScrollControls();
-    setupTooltip(nodesData);
-  } catch (err) {
-    console.error("Schematic render error:", err);
-    if (container) {
-      container.innerHTML = `
-        <div class="alert alert-warning p-3 m-2">
-          <h6 class="alert-heading fw-bold mb-1"><i class="mdi mdi-alert me-1"></i>Schematic View Error</h6>
-          <p class="mb-0 small">${escapeXml(err.message || String(err))}</p>
-        </div>
-      `;
-    }
-  }
-}
-
-// Smooth Horizontal Scroll Buttons & Drag-to-Pan
-function setupScrollControls() {
-  const container = document.getElementById('schematic-container');
-  const btnLeft = document.getElementById('schematic-scroll-left');
-  const btnRight = document.getElementById('schematic-scroll-right');
-  if (!container) return;
-
-  if (btnLeft && !btnLeft._hasListener) {
-    btnLeft._hasListener = true;
-    btnLeft.addEventListener('click', function() {
-      container.scrollBy({ left: -380, behavior: 'smooth' });
-    });
-  }
-  if (btnRight && !btnRight._hasListener) {
-    btnRight._hasListener = true;
-    btnRight.addEventListener('click', function() {
-      container.scrollBy({ left: 380, behavior: 'smooth' });
-    });
-  }
-
-  if (!container._hasDragListener) {
-    container._hasDragListener = true;
-    let isDown = false;
-    let startX, scrollLeft;
-
-    container.addEventListener('mousedown', (e) => {
-      if (e.target.closest('a')) return;
-      isDown = true;
-      startX = e.pageX - container.offsetLeft;
-      scrollLeft = container.scrollLeft;
-    });
-    window.addEventListener('mouseup', () => { isDown = false; });
-    container.addEventListener('mousemove', (e) => {
-      if (!isDown) return;
-      e.preventDefault();
-      const x = e.pageX - container.offsetLeft;
-      const walk = (x - startX) * 1.5;
-      container.scrollLeft = scrollLeft - walk;
-    });
-  }
-}
-
-// Interactive Tooltip on Hovering Drop Point Enclosures
-function setupTooltip(nodesData) {
-  const container = document.getElementById('schematic-container');
-  const tooltip = document.getElementById('schematic-tooltip');
-  if (!container || !tooltip) return;
-
-  const dropNodes = (nodesData || []).filter(n => n.type === 'drop');
-
-  function showTooltip(e, dp) {
-    const titleEl = document.getElementById('tooltip-title');
-    const badgeEl = document.getElementById('tooltip-badge');
-    const bodyEl = document.getElementById('tooltip-body');
-    if (!titleEl || !badgeEl || !bodyEl) return;
-
-    titleEl.textContent = dp.name || 'Drop Point';
-    badgeEl.textContent = dp.km !== null && dp.km !== undefined ? `${dp.km} KM` : (dp.point_type || 'Drop Point');
-
-    const droppedList = dp.dropped_cores && dp.dropped_cores.length ? dp.dropped_cores : [];
-    const passedList = dp.passed_cores && dp.passed_cores.length ? dp.passed_cores : [];
-
-    let html = `
-      <div class="mb-2">
-        <div class="d-flex justify-content-between align-items-center mb-1">
-          <span class="fw-bold text-success" style="font-size: 11px;">
-            <i class="mdi mdi-source-branch me-1"></i>Dropped Cores (${droppedList.length})
-          </span>
-        </div>
-        <div class="d-flex flex-wrap gap-1">
-    `;
-
-    if (droppedList.length) {
-      droppedList.forEach(c => {
-        html += `<span class="badge bg-success text-white" style="font-size: 11px;">Core ${c}</span>`;
-      });
-    } else {
-      html += `<span class="text-muted fst-italic small">None</span>`;
-    }
-
-    html += `
-        </div>
-      </div>
-      <div>
-        <div class="d-flex justify-content-between align-items-center mb-1">
-          <span class="fw-bold text-primary" style="font-size: 11px;">
-            <i class="mdi mdi-ray-start-end me-1"></i>Passed-Through Cores (${passedList.length})
-          </span>
-        </div>
-        <div class="d-flex flex-wrap gap-1" style="max-height: 150px; overflow-y: auto;">
-    `;
-
-    if (passedList.length) {
-      passedList.forEach(c => {
-        html += `<span class="badge bg-primary-subtle text-primary border" style="font-size: 11px;">Core ${c}</span>`;
-      });
-    } else {
-      html += `<span class="text-muted fst-italic small">None</span>`;
-    }
-
-    html += `
-        </div>
-      </div>
-    `;
-
-    bodyEl.innerHTML = html;
-    tooltip.style.display = 'block';
-    moveTooltip(e);
-  }
-
-  function moveTooltip(e) {
-    const rect = container.getBoundingClientRect();
-    const tooltipWidth = tooltip.offsetWidth || 280;
-    const tooltipHeight = tooltip.offsetHeight || 160;
-
-    let x = e.clientX - rect.left + container.scrollLeft + 15;
-    let y = e.clientY - rect.top - tooltipHeight - 10;
-
-    if (y < 10) {
-      y = e.clientY - rect.top + 20;
-    }
-
-    if (e.clientX - rect.left + tooltipWidth + 30 > container.clientWidth) {
-      x = e.clientX - rect.left + container.scrollLeft - tooltipWidth - 15;
-    }
-
-    tooltip.style.left = `${Math.max(10, x)}px`;
-    tooltip.style.top = `${Math.max(10, y)}px`;
-  }
-
-  function hideTooltip() {
-    tooltip.style.display = 'none';
-  }
-
-  container.querySelectorAll('.schematic-dp-group').forEach(group => {
-    const dpId = group.getAttribute('data-dp-id');
-    const dp = dropNodes.find(n => n.id === dpId);
-    if (!dp) return;
-
-    group.addEventListener('mouseenter', function(e) {
-      showTooltip(e, dp);
-    });
-
-    group.addEventListener('mousemove', function(e) {
-      moveTooltip(e);
-    });
-
-    group.addEventListener('mouseleave', function() {
-      hideTooltip();
-    });
-  });
-}
-
-// Multi-phase initialization to ensure execution in NetBox / HTMX / direct load:
-if (document.readyState === 'loading') {
-  document.addEventListener('DOMContentLoaded', renderFiberSchematic);
-} else {
-  renderFiberSchematic();
-}
-window.addEventListener('load', renderFiberSchematic);
-document.addEventListener('htmx:load', renderFiberSchematic);
-document.addEventListener('htmx:afterSettle', renderFiberSchematic);
-window.addEventListener('resize', function() {
-  clearTimeout(window._schematicResizeTimer);
-  window._schematicResizeTimer = setTimeout(renderFiberSchematic, 150);
-});
-</script>
 {% endblock %}

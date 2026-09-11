@@ -5,12 +5,12 @@
 <div class="row mb-3">
   <div class="col col-md-6">
     <div class="card">
-      <h5 class="card-header">Drop Point Information</h5>
+      <h5 class="card-header"><i class="mdi mdi-map-marker me-1 text-primary"></i>Point / Station Information</h5>
       <div class="card-body">
         <table class="table table-hover attr-table">
           <tr>
-            <th scope="row">Name / Joint</th>
-            <td>{{ object.name }}</td>
+            <th scope="row">Point / Station Name</th>
+            <td class="fw-bold">{{ object.name }}</td>
           </tr>
           <tr>
             <th scope="row">Fiber Route</th>
@@ -22,17 +22,21 @@
               {% if object.site %}
                 <a href="{{ object.site.get_absolute_url }}">{{ object.site.name }}</a>
               {% else %}
-                <span class="text-muted">Custom Point / Joint Enclosure</span>
+                <span class="text-muted">Custom Station / Joint Enclosure</span>
               {% endif %}
             </td>
           </tr>
           <tr>
             <th scope="row">Point Type</th>
-            <td>{{ object.get_point_type_display }}</td>
-          </tr>
-          <tr>
-            <th scope="row">Sequence along Route</th>
-            <td><span class="badge bg-secondary text-white">#{{ object.sequence }}</span></td>
+            <td>
+              {% if object.point_type == 'start' %}
+                <span class="badge bg-success text-white"><i class="mdi mdi-ray-start me-1"></i>Starting Point</span>
+              {% elif object.point_type == 'end' %}
+                <span class="badge bg-primary text-white"><i class="mdi mdi-ray-end me-1"></i>End Point</span>
+              {% else %}
+                <span class="badge bg-warning text-dark"><i class="mdi mdi-map-marker-outline me-1"></i>Intermediate Station</span>
+              {% endif %}
+            </td>
           </tr>
           <tr>
             <th scope="row">Distance Marker (KM)</th>
@@ -49,36 +53,42 @@
 
   <div class="col col-md-6">
     <div class="card">
-      <h5 class="card-header">Core Termination & Dropping</h5>
+      <h5 class="card-header"><i class="mdi mdi-ray-vertex me-1 text-success"></i>Associated Route Details</h5>
       <div class="card-body">
-        <div class="mb-3">
-          <label class="fw-bold text-success mb-1"><i class="mdi mdi-ray-vertex me-1"></i>Dropped Cores at this Location:</label>
-          <div>
-            {% for core in parsed_dropped_cores %}
-              <span class="badge bg-success text-white fs-6 me-1">Core {{ core }}</span>
-            {% empty %}
-              <span class="text-muted">None specified</span>
-            {% endfor %}
-          </div>
-          <small class="text-muted">Raw string: <code>{{ object.dropped_cores }}</code></small>
-        </div>
-
-        {% if object.passed_cores %}
-        <div class="mb-3">
-          <label class="fw-bold text-info mb-1"><i class="mdi mdi-arrow-right-bold me-1"></i>Pass-Through Cores:</label>
-          <div>
-            {% for core in parsed_passed_cores %}
-              <span class="badge bg-info fs-6 me-1">Core {{ core }}</span>
-            {% endfor %}
-          </div>
-          <small class="text-muted">Raw string: <code>{{ object.passed_cores }}</code></small>
-        </div>
-        {% endif %}
-
-        <div class="alert alert-secondary mt-3 mb-0 py-2 small">
-          <i class="mdi mdi-information-outline me-1"></i>
-          This point is part of <strong><a href="{{ object.fiber_route.get_absolute_url }}">{{ object.fiber_route.name }}</a></strong> 
-          with <strong>{{ object.fiber_route.total_cores }}</strong> total cores.
+        <table class="table table-hover attr-table">
+          <tr>
+            <th scope="row">Route Name</th>
+            <td><a href="{{ object.fiber_route.get_absolute_url }}" class="fw-bold">{{ object.fiber_route.name }}</a></td>
+          </tr>
+          <tr>
+            <th scope="row">Vendor</th>
+            <td><a href="{{ object.fiber_route.vendor.get_absolute_url }}">{{ object.fiber_route.vendor.name }}</a></td>
+          </tr>
+          <tr>
+            <th scope="row">Cable Type</th>
+            <td>{{ object.fiber_route.get_cable_type_display }}</td>
+          </tr>
+          <tr>
+            <th scope="row">Total Length</th>
+            <td><span class="badge bg-secondary text-white">{{ object.fiber_route.total_length_km }} KM</span></td>
+          </tr>
+          <tr>
+            <th scope="row">Total Cores</th>
+            <td><span class="badge bg-primary text-white">{{ object.fiber_route.total_cores }} Cores</span></td>
+          </tr>
+          <tr>
+            <th scope="row">Status</th>
+            <td>
+              <span class="badge {% if object.fiber_route.status == 'active' %}bg-success text-white{% elif object.fiber_route.status == 'planned' %}bg-info text-dark{% else %}bg-warning text-dark{% endif %}">
+                {{ object.fiber_route.get_status_display }}
+              </span>
+            </td>
+          </tr>
+        </table>
+        <div class="mt-3 text-end">
+          <a href="{{ object.fiber_route.get_absolute_url }}" class="btn btn-sm btn-outline-primary">
+            <i class="mdi mdi-eye me-1"></i>View Full Route
+          </a>
         </div>
       </div>
     </div>

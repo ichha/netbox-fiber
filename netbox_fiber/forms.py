@@ -136,10 +136,87 @@ class FiberRouteImportForm(NetBoxModelImportForm):
         required=True,
         help_text='Vendor Name'
     )
+    start_site = forms.ModelChoiceField(
+        queryset=Site.objects.all(),
+        to_field_name='name',
+        required=False,
+        help_text='Starting NetBox Site Name (optional)'
+    )
+    end_site = forms.ModelChoiceField(
+        queryset=Site.objects.all(),
+        to_field_name='name',
+        required=False,
+        help_text='Ending NetBox Site Name (optional)'
+    )
+    cable_type = forms.CharField(
+        required=False,
+        initial='adss',
+        help_text='Cable installation type (e.g. adss, underground, aerial, armored)'
+    )
+    status = forms.CharField(
+        required=False,
+        initial='active',
+        help_text='Route status (e.g. active, planned, maintenance)'
+    )
 
     class Meta:
         model = FiberRoute
-        fields = ('name', 'vendor', 'cable_type', 'status', 'total_length_km', 'total_cores', 'description', 'comments')
+        fields = (
+            'name', 'vendor', 'start_site', 'start_site_name',
+            'end_site', 'end_site_name', 'cable_type', 'status',
+            'total_length_km', 'total_cores', 'description', 'comments'
+        )
+
+    def clean_cable_type(self):
+        val = str(self.cleaned_data.get('cable_type') or 'adss').strip().lower()
+        mapping = {
+            'adss': 'adss',
+            'adss (all-dielectric self-supporting)': 'adss',
+            'underground': 'underground',
+            'underground / duct': 'underground',
+            'duct': 'underground',
+            'armored': 'armored',
+            'direct buried / armored': 'armored',
+            'buried': 'armored',
+            'aerial': 'aerial',
+            'aerial / figure-8': 'aerial',
+            'figure-8': 'aerial',
+            'figure 8': 'aerial',
+            'submarine': 'submarine',
+            'submarine / underwater': 'submarine',
+            'underwater': 'submarine',
+            'indoor': 'indoor',
+            'indoor / riser': 'indoor',
+            'riser': 'indoor',
+            'other': 'other',
+        }
+        for k, v in mapping.items():
+            if val == k or val.startswith(k):
+                return v
+        valid_keys = [c[0] for c in FiberRoute.CABLE_TYPE_CHOICES]
+        if val in valid_keys:
+            return val
+        raise forms.ValidationError(f"Invalid cable_type '{val}'. Valid choices are: {', '.join(valid_keys)}")
+
+    def clean_status(self):
+        val = str(self.cleaned_data.get('status') or 'active').strip().lower()
+        mapping = {
+            'active': 'active',
+            'planned': 'planned',
+            'maintenance': 'maintenance',
+            'under maintenance': 'maintenance',
+            'decommissioned': 'decommissioned',
+            'damaged': 'damaged',
+            'damaged / cut': 'damaged',
+            'cut': 'damaged',
+        }
+        for k, v in mapping.items():
+            if val == k or val.startswith(k):
+                return v
+        valid_keys = [s[0] for s in FiberRoute.STATUS_CHOICES]
+        if val in valid_keys:
+            return val
+        raise forms.ValidationError(f"Invalid status '{val}'. Valid choices are: {', '.join(valid_keys)}")
 
 
 class FiberDropPointImportForm(NetBoxModelImportForm):
@@ -155,10 +232,31 @@ class FiberDropPointImportForm(NetBoxModelImportForm):
         required=False,
         help_text='NetBox Site Name (optional)'
     )
+    point_type = forms.CharField(
+        required=False,
+        initial='drop',
+        help_text='Point type (intermediate, drop, start, end)'
+    )
 
     class Meta:
         model = FiberDropPoint
         fields = ('fiber_route', 'site', 'name', 'point_type', 'distance_km', 'description', 'comments')
+
+    def clean_point_type(self):
+        val = str(self.cleaned_data.get('point_type') or 'drop').strip().lower()
+        mapping = {
+            'drop': 'drop',
+            'intermediate': 'drop',
+            'intermediate drop point': 'drop',
+            'start': 'start',
+            'starting point': 'start',
+            'end': 'end',
+            'end point': 'end',
+        }
+        for k, v in mapping.items():
+            if val == k or val.startswith(k):
+                return v
+        return 'drop'
 
 
 # --- Filter Forms ---
